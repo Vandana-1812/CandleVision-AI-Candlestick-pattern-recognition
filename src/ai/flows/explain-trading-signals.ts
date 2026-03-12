@@ -1,8 +1,8 @@
 'use server';
 /**
- * @fileOverview A Genkit flow for generating student-friendly explanations of AI-generated trading signals.
+ * @fileOverview A Genkit flow for generating student-friendly, step-wise explanations of AI-generated trading signals.
  *
- * - explainTradingSignals - A function that generates an explanation for a trading signal.
+ * - explainTradingSignals - A function that generates a structured explanation for a trading signal.
  * - ExplainTradingSignalInput - The input type for the explainTradingSignals function.
  * - ExplainTradingSignalOutput - The return type for the explainTradingSignals function.
  */
@@ -34,7 +34,9 @@ export type ExplainTradingSignalInput = z.infer<
 >;
 
 const ExplainTradingSignalOutputSchema = z.object({
-  explanation: z.string().describe('The student-friendly explanation of the trading signal.'),
+  summary: z.string().describe('A concise 1-sentence summary of the recommendation.'),
+  steps: z.array(z.string()).describe('A step-by-step breakdown of the analysis points.'),
+  conclusion: z.string().describe('A final actionable insight or risk warning.'),
 });
 export type ExplainTradingSignalOutput = z.infer<
   typeof ExplainTradingSignalOutputSchema
@@ -50,36 +52,24 @@ const explainTradingSignalPrompt = ai.definePrompt({
   name: 'explainTradingSignalPrompt',
   input: {schema: ExplainTradingSignalInputSchema},
   output: {schema: ExplainTradingSignalOutputSchema},
-  prompt: `You are an expert financial analyst providing clear, student-friendly explanations of trading signals.
-Your goal is to help a beginner understand why a specific trading signal (Buy, Sell, or Hold) was generated for a given asset, based on market analysis.
+  prompt: `You are an expert financial analyst for beginner traders. 
+Your task is to provide a highly concise, step-wise explanation for a '{{{signal}}}' signal on **{{{assetSymbol}}}**.
 
-Provide a detailed but easy-to-understand explanation for the trading signal for **{{{assetSymbol}}}**.
+Confidence Level: {{confidenceScore}}%
 
-**Trading Signal:** {{{signal}}} (Confidence: {{confidenceScore}}%)
+**Constraints:**
+1. Be extremely concise. Use simple language.
+2. Break the analysis into exactly 3-5 logical "steps".
+3. The 'summary' should be one punchy sentence.
+4. The 'conclusion' should focus on risk or the primary reason for the signal.
 
-**Key Factors:**
+**Data Context:**
+- Patterns: {{#each detectedPatterns}}{{{this}}}, {{/each}}
+- Indicators: {{#each technicalIndicators}}{{{name}}} is {{{value}}}, {{/each}}
+- Momentum: {{{priceMomentum}}}
+{{#if marketContext}}- Context: {{{marketContext}}}{{/if}}
 
-{{#if detectedPatterns.length}}
-- **Candlestick Patterns:**
-  {{#each detectedPatterns}}
-  - The '{{{this}}}' pattern was detected, which typically indicates...
-  {{/each}}
-{{/if}}
-
-{{#if technicalIndicators.length}}
-- **Technical Indicators:**
-  {{#each technicalIndicators}}
-  - The **{{{name}}}** indicator currently shows a value of {{{value}}}, suggesting...
-  {{/each}}
-{{/if}}
-
-- **Price Momentum:** The current price momentum is described as: "{{{priceMomentum}}}", indicating...
-
-{{#if marketContext}}
-- **Additional Market Context:** "{{{marketContext}}}". This context might influence the signal by...
-{{/if}}
-
-Based on these factors, the '{{{signal}}}' signal has been generated because... [Elaborate here, connecting the dots for the student trader. Explain the significance of each factor and how they collectively support the signal. Use simple language and relatable analogies if helpful. Be sure to explain the implication of the identified patterns and indicators for a beginner trader.]`,
+Provide the output in the requested JSON format with 'summary', 'steps' (array), and 'conclusion'.`,
 });
 
 const explainTradingSignalFlow = ai.defineFlow(
