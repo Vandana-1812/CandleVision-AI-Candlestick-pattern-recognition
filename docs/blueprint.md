@@ -1,0 +1,42 @@
+# **App Name**: CandleVision
+
+## Core Features:
+
+- Real-time Market Data & Interactive 3D Charts: Fetches real-time OHLC financial market data using APIs (e.g., Yahoo Finance, Binance), stores it in Firebase Firestore, and displays it on captivating, interactive 3D candlestick charts that dynamically update without dummy data.
+- Advanced Candlestick & Indicator Analytics: Implements sophisticated algorithms to detect 7 key candlestick patterns (e.g., Hammer, Doji, Engulfing, Morning Star) and calculate critical technical indicators (e.g., RSI, MACD, Moving Averages, Bollinger Bands) using live OHLC data, presented visually on charts.
+- AI Trading Signal Generator Tool: An intelligent AI tool that meticulously analyzes detected patterns, technical indicators, and real-time price momentum to generate highly precise Buy, Sell, or Hold trading signals, accompanied by a dynamic confidence score.
+- AI-Powered Intuitive Signal Explanations Tool: Provides crystal-clear, student-friendly explanations for each generated trading signal, describing the 'why' behind the signal and the meaning of identified patterns in simple, relatable language, based on immediate market analysis.
+- Immersive Paper Trading Simulator with Virtual Competitions: A dynamic virtual trading environment allowing users to practice with a substantial fictitious balance (e.g., $10,000), track profit/loss, and review detailed trade history and win rates. Includes engaging virtual trading competitions and leaderboards to foster skill development in a competitive yet risk-free setting.
+- Gamified Learning Hub & AI-Personalized Paths Tool: Offers an extensive library of interactive educational modules explaining complex trading concepts, candlestick patterns, and indicators with vivid 3D diagrams and real-world examples. Features gamified quizzes for pattern recognition and knowledge testing, coupled with an AI tool that personalizes learning paths based on the user's progress, identified weaknesses, and learning style.
+- Secure & Seamless User Authentication: Manages user accounts with robust security, covering registration, login, and profile management, powered by Firebase Authentication for a smooth user experience.
+- Dynamic & Customizable 3D Holographic Dashboard: A visually stunning and fully customizable dashboard interface, providing a real-time market overview, interactive 3D charts, live signal feeds, AI explanations, personalized learning modules, and the paper trading interface, all rendered dynamically with an emphasis on visual appeal and user control within a holographic aesthetic.
+- Real-time Intelligent Signal Notifications: Sends instant, intelligent alerts when new trading signals are generated via Firebase Cloud Messaging, ensuring users are immediately informed of potential opportunities and crucial market shifts.
+- Adaptive User Experience Modes: Intelligently adapts the platform's interface and information complexity with 'Beginner' mode, offering simplified 3D charts and intuitive explanations, and 'Expert' mode, providing a full suite of advanced technical analysis tools and in-depth data.
+- Comprehensive Multilingual Support: Delivers a truly global experience with extensive language support for English, Hindi, Spanish, and Chinese, offering real-time translation of all UI elements and educational content through integrated translation APIs.
+- Interactive 3D Market Visualization & Playback: A unique feature allowing users to explore historical market data in an interactive 3D environment, 'replaying' past market movements and patterns to deepen understanding and practice identifying trading opportunities without real-time pressure.
+- Community & Collaborative Learning Ecosystem: Fosters a vibrant community environment where users can share insights, discuss strategies, participate in expert Q&A sessions, and analyze collective market sentiment, building a supportive network for learning and growth.
+- Robust Data Preprocessing Pipeline: Ensures high-quality, clean, and consistent market data for all analytical and AI models through an automated pipeline.
+- Advanced Feature Engineering Engine: Automatically derives and optimizes relevant features from raw market data to enhance the accuracy and insights of AI models and analytics.
+- Comprehensive Backtesting Framework: Allows users to test and validate their trading strategies against historical market data with detailed performance metrics and visualizations.
+- Integrated Risk Management System: Provides a foundational layer for managing and calculating potential trading risks within the paper trading simulator and future real trading functionalities.
+- Detailed Portfolio Analytics Module: Offers in-depth analysis of user trading performance, including profit/loss, drawdowns, risk metrics, and strategy effectiveness within the paper trading environment.
+- AI-Powered Market Sentiment Analysis Tool: An AI tool that analyzes news, social media, and other textual data sources to gauge overall market sentiment, providing an additional layer of insight for trading decisions.
+- Explainable AI Insights Tool: Provides transparent insights into the decision-making process of the AI signal generator, offering detailed breakdowns of contributing factors and feature importance for each signal.
+- High-Performance Data Optimization: Ensures rapid data processing and delivery for real-time charts and analytics, maintaining platform responsiveness even under high load.
+- Enhanced Security Framework: Implements advanced security protocols beyond authentication to protect user data and ensure the integrity of the platform's financial information.
+- Robust Logging & Monitoring System: Provides continuous real-time monitoring of system health, data flows, and user interactions to ensure stability, performance, and quick issue resolution.
+- Cross-Platform Mobile App Extension: Extends core platform functionalities, including real-time charts, signal notifications, and paper trading, to native iOS and Android applications for on-the-go access.
+- Dedicated Indian Market Data Integration: Expands real-time market data coverage to include specific Indian stock exchanges and instruments, providing tailored insights for traders focusing on this region.
+- Comprehensive Accessibility Support: Ensures the platform is usable by individuals with diverse abilities, adhering to WCAG guidelines for visual, auditory, motor, and cognitive accessibility.
+- Historical Research Dataset Storage: Maintains a vast, organized repository of historical market data and derived features for advanced backtesting, research, and AI model training.
+
+## Style Guidelines:
+
+- A deep, authoritative electric blue (#2A5A9F) to evoke trust and technological prowess, providing a striking backdrop for data visualization and interactive elements.
+- A sophisticated, dark charcoal gray (#1A1A1A) with subtle gradients, creating a premium, immersive 3D environment that makes data and interactive elements pop with vibrancy.
+- A vibrant neon green (#39FF14) for positive signals and growth, and a sharp electric orange (#FF6600) for warnings or critical actions, ensuring high visibility and an energetic, modern feel.
+- 'Space Mono' (monospace sans-serif) for its distinctive, high-tech aesthetic, perfect for displaying data labels, chart titles, and key dashboard metrics in the 3D space, enhancing readability.
+- 'Inter' (sans-serif) for its exceptional clarity and modern neutrality, ensuring effortless readability for educational content, signal explanations, and all general interface text within the immersive environment.
+- Utilizes a suite of custom-designed, sleek, futuristic 3D vector icons with subtle glow effects, consistent with a high-tech financial interface, rendered seamlessly within the immersive 3D environment for intuitive navigation and data representation.
+- Implements a highly modular and customizable 3D holographic dashboard layout, allowing users to spatially arrange and resize interactive data widgets, charts, and learning modules within a personalized, immersive workspace. Emphasizes fluid transitions and dynamic content placement for an unparalleled user experience.
+- Leverages rich, high-performance 3D animations and micro-interactions, including dynamic data point morphing, smooth camera transitions, and subtle hover effects. These animations create a continuously engaging, non-static frontend that not only looks extraordinary but also aids in data comprehension and intuitive user guidance.
