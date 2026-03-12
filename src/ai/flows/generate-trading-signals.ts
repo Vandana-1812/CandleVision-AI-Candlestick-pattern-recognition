@@ -54,7 +54,7 @@ export type GenerateTradingSignalOutput = z.infer<typeof GenerateTradingSignalOu
 
 const prompt = ai.definePrompt({
   name: 'generateTradingSignalPrompt',
-  model: 'googleai/gemini-1.5-flash',
+  model: 'googleai/gemini-1.5-pro',
   input: { schema: z.any() },
   output: { schema: GenerateTradingSignalOutputSchema },
   prompt: `You are an expert financial analyst. Analyze the following market data for {{{symbol}}} and provide a trading signal.
