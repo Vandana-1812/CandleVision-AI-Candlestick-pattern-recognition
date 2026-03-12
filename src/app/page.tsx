@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -19,6 +18,7 @@ export default function Home() {
   const db = useFirestore();
   const [data, setData] = useState<OHLC[]>([]);
   const [symbol, setSymbol] = useState('BTCUSDT');
+  const [searchInput, setSearchInput] = useState('BTCUSDT');
   const [marketLoading, setMarketLoading] = useState(true);
   const router = useRouter();
 
@@ -39,9 +39,16 @@ export default function Home() {
 
     const loadData = async () => {
       setMarketLoading(true);
-      const result = await fetchRealOHLC(symbol);
-      setData(result);
-      setMarketLoading(false);
+      try {
+        const result = await fetchRealOHLC(symbol);
+        if (result.length > 0) {
+          setData(result);
+        }
+      } catch (e) {
+        console.error("Failed to load symbol", symbol);
+      } finally {
+        setMarketLoading(false);
+      }
     };
 
     loadData();
@@ -50,6 +57,11 @@ export default function Home() {
     const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
   }, [symbol, user]);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSymbol(searchInput.toUpperCase().replace('/', ''));
+  };
 
   if (userLoading || (user && profileLoading)) {
     return (
@@ -70,17 +82,17 @@ export default function Home() {
 
       <main className="flex-1 overflow-y-auto p-6 space-y-6">
         <header className="flex items-center justify-between">
-          <div className="flex items-center gap-4 bg-card/30 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 w-96">
+          <form onSubmit={handleSearch} className="flex items-center gap-4 bg-card/30 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 w-96">
             <Search className="w-4 h-4 text-muted-foreground" />
             <input 
               type="text" 
-              placeholder="Asset Symbol (e.g. BTCUSDT)..." 
+              placeholder="Search (e.g. BTCUSDT, ETHBTC)..." 
               className="bg-transparent border-none outline-none text-sm w-full font-body"
-              value={symbol}
-              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               suppressHydrationWarning
             />
-          </div>
+          </form>
           <div className="flex items-center gap-4">
             <button className="p-2 hover:bg-white/5 rounded-full transition-colors relative" suppressHydrationWarning>
               <Bell className="w-5 h-5 text-muted-foreground" />
@@ -115,9 +127,9 @@ export default function Home() {
                 <div>
                   <CardTitle className="font-headline text-xl glow-blue uppercase tracking-tight flex items-center gap-2">
                     <LineChart className="w-5 h-5 text-primary" />
-                    Live Holographic Feed
+                    Live Holographic Feed: {symbol}
                   </CardTitle>
-                  <p className="text-xs text-muted-foreground font-body">Real-time OHLC from Binance Exchange</p>
+                  <p className="text-xs text-muted-foreground font-body">Real-time OHLC from Exchange API</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Tabs defaultValue="1h" className="w-[200px]">
