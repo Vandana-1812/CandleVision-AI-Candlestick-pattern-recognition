@@ -11,65 +11,37 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const ExplainTradingSignalInputSchema = z.object({
-  assetSymbol: z.string().describe('The ticker symbol or name of the asset.'),
-  signal: z.string().describe('The trading signal (e.g., "Buy", "Sell", "Hold").'),
-  confidenceScore: z.number().describe('The confidence score for the signal (0-100).'),
-  detectedPatterns: z.array(z.string()).describe('List of detected candlestick patterns.'),
-  technicalIndicators: z
-    .array(
-      z.object({
-        name: z.string().describe('The name of the technical indicator.'),
-        value: z.any().describe('The value of the technical indicator.'),
-      })
-    )
-    .describe('An array of technical indicators and their values.'),
-  priceMomentum: z.string().describe('Description of current price momentum.'),
-  marketContext: z
-    .string()
-    .optional()
-    .describe('Optional additional market context.'),
+  assetSymbol: z.string(),
+  signal: z.string(),
+  confidenceScore: z.number(),
+  detectedPatterns: z.array(z.string()),
+  technicalIndicators: z.array(z.object({ name: z.string(), value: z.any() })),
+  priceMomentum: z.string(),
+  marketContext: z.string().optional(),
 });
-export type ExplainTradingSignalInput = z.infer<
-  typeof ExplainTradingSignalInputSchema
->;
+export type ExplainTradingSignalInput = z.infer<typeof ExplainTradingSignalInputSchema>;
 
 const ExplainTradingSignalOutputSchema = z.object({
   summary: z.string().describe('A concise 1-sentence summary of the recommendation.'),
   steps: z.array(z.string()).describe('A step-by-step breakdown of the analysis points.'),
   conclusion: z.string().describe('A final actionable insight or risk warning.'),
 });
-export type ExplainTradingSignalOutput = z.infer<
-  typeof ExplainTradingSignalOutputSchema
->;
-
-export async function explainTradingSignals(
-  input: ExplainTradingSignalInput
-): Promise<ExplainTradingSignalOutput> {
-  return explainTradingSignalFlow(input);
-}
+export type ExplainTradingSignalOutput = z.infer<typeof ExplainTradingSignalOutputSchema>;
 
 const explainTradingSignalPrompt = ai.definePrompt({
   name: 'explainTradingSignalPrompt',
+  model: 'googleai/gemini-1.5-flash',
   input: {schema: ExplainTradingSignalInputSchema},
   output: {schema: ExplainTradingSignalOutputSchema},
-  prompt: `You are an expert financial analyst for beginner traders. 
-Your task is to provide a highly concise, step-wise explanation for a '{{{signal}}}' signal on **{{{assetSymbol}}}**.
+  prompt: `You are an expert financial analyst. Provide a concise, step-wise explanation for a '{{{signal}}}' signal on **{{{assetSymbol}}}**.
 
-Confidence Level: {{confidenceScore}}%
+Confidence: {{confidenceScore}}%
+Momentum: {{{priceMomentum}}}
 
-**Constraints:**
-1. Be extremely concise. Use simple language.
-2. Break the analysis into exactly 3-5 logical "steps".
-3. The 'summary' should be one punchy sentence.
-4. The 'conclusion' should focus on risk or the primary reason for the signal.
-
-**Data Context:**
-- Patterns: {{#each detectedPatterns}}{{{this}}}, {{/each}}
-- Indicators: {{#each technicalIndicators}}{{{name}}} is {{{value}}}, {{/each}}
-- Momentum: {{{priceMomentum}}}
-{{#if marketContext}}- Context: {{{marketContext}}}{{/if}}
-
-Provide the output in the requested JSON format with 'summary', 'steps' (array), and 'conclusion'.`,
+Constraints:
+1. Break analysis into 3-5 clear steps.
+2. One punchy summary sentence.
+3. Final actionable conclusion.`,
 });
 
 const explainTradingSignalFlow = ai.defineFlow(
@@ -83,3 +55,7 @@ const explainTradingSignalFlow = ai.defineFlow(
     return output!;
   }
 );
+
+export async function explainTradingSignals(input: ExplainTradingSignalInput): Promise<ExplainTradingSignalOutput> {
+  return explainTradingSignalFlow(input);
+}
