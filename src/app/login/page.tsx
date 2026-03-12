@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from 'react';
@@ -8,13 +9,14 @@ import {
   signInWithPopup, 
   GoogleAuthProvider 
 } from 'firebase/auth';
-import { useAuth } from '@/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { useAuth, useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { isConfigValid } from '@/firebase/config';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Zap, LogIn, AlertCircle } from 'lucide-react';
+import { Zap, LogIn, AlertCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -25,6 +27,7 @@ export default function LoginPage() {
   const [isRegistering, setIsRegistering] = useState(false);
   
   const auth = useAuth();
+  const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -41,8 +44,32 @@ export default function LoginPage() {
     
     setIsLoading(true);
     try {
+      let userCredential;
       if (isRegistering) {
-        await createUserWithEmailAndPassword(auth, email, password);
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        
+        // Initialize user profile in Firestore
+        if (db) {
+          const userRef = doc(db, 'users', userCredential.user.uid);
+          const profileData = {
+            uid: userCredential.user.uid,
+            email: userCredential.user.email,
+            displayName: email.split('@')[0],
+            virtualBalance: 10000,
+            createdAt: serverTimestamp(),
+          };
+
+          setDoc(userRef, profileData, { merge: true })
+            .catch(async (error) => {
+              const permissionError = new FirestorePermissionError({
+                path: userRef.path,
+                operation: 'write',
+                requestResourceData: profileData,
+              });
+              errorEmitter.emit('permission-error', permissionError);
+            });
+        }
+        
         toast({ title: "Account created", description: "Welcome to CandleVision!" });
       } else {
         await signInWithEmailAndPassword(auth, email, password);
@@ -52,8 +79,13 @@ export default function LoginPage() {
     } catch (error: any) {
       let message = error.message;
       if (error.code === 'auth/operation-not-allowed') {
-        message = "Email/Password sign-in is not enabled in your Firebase Console.";
+        message = "Sign-in provider not enabled. Please enable Email/Password in Firebase Console.";
+      } else if (error.code === 'auth/invalid-credential') {
+        message = "Invalid email or password. Please try again.";
+      } else if (error.code === 'auth/email-already-in-use') {
+        message = "An account with this email already exists.";
       }
+      
       toast({ 
         variant: "destructive", 
         title: "Authentication Error", 
@@ -66,9 +98,33 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = async () => {
     if (!auth || !isConfigValid) return;
+    setIsLoading(true);
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const userCredential = await signInWithPopup(auth, provider);
+      
+      // Initialize profile for Google users too
+      if (db) {
+        const userRef = doc(db, 'users', userCredential.user.uid);
+        const profileData = {
+          uid: userCredential.user.uid,
+          email: userCredential.user.email,
+          displayName: userCredential.user.displayName,
+          virtualBalance: 10000,
+          createdAt: serverTimestamp(),
+        };
+
+        setDoc(userRef, profileData, { merge: true })
+          .catch(async (error) => {
+            const permissionError = new FirestorePermissionError({
+              path: userRef.path,
+              operation: 'write',
+              requestResourceData: profileData,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+          });
+      }
+      
       router.push('/');
     } catch (error: any) {
       let message = error.message;
@@ -80,6 +136,8 @@ export default function LoginPage() {
         title: "Google Sign-In Error", 
         description: message 
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -109,7 +167,7 @@ export default function LoginPage() {
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Configuration Missing</AlertTitle>
               <AlertDescription className="text-xs">
-                Firebase API keys are missing. Please set your <code>.env</code> variables using the values from the Firebase Console.
+                Firebase API keys are missing. Please check your <code>.env</code> variables.
               </AlertDescription>
             </Alert>
           )}
@@ -124,7 +182,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                disabled={!isConfigValid}
+                disabled={!isConfigValid || isLoading}
                 className="bg-background/50 border-white/10"
               />
             </div>
@@ -136,7 +194,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                disabled={!isConfigValid}
+                disabled={!isConfigValid || isLoading}
                 className="bg-background/50 border-white/10"
               />
             </div>
@@ -146,8 +204,17 @@ export default function LoginPage() {
               className="w-full bg-primary hover:bg-primary/80 text-white font-headline"
               disabled={isLoading || !isConfigValid}
             >
-              {isLoading ? "PROCESING..." : (isRegistering ? "CREATE ACCOUNT" : "AUTHORIZE ACCESS")}
-              <LogIn className="ml-2 w-4 h-4" />
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  PROCESSING...
+                </>
+              ) : (
+                <>
+                  {isRegistering ? "CREATE ACCOUNT" : "AUTHORIZE ACCESS"}
+                  <LogIn className="ml-2 w-4 h-4" />
+                </>
+              )}
             </Button>
           </form>
         </CardContent>
@@ -163,7 +230,7 @@ export default function LoginPage() {
             variant="outline" 
             className="w-full border-white/10 hover:bg-white/5 font-headline text-xs"
             onClick={handleGoogleSignIn}
-            disabled={!isConfigValid}
+            disabled={!isConfigValid || isLoading}
           >
             GOOGLE TERMINAL
           </Button>
@@ -172,7 +239,7 @@ export default function LoginPage() {
             type="button"
             className="text-xs text-muted-foreground hover:text-primary transition-colors mt-2 outline-none"
             onClick={() => setIsRegistering(!isRegistering)}
-            disabled={!isConfigValid}
+            disabled={!isConfigValid || isLoading}
             suppressHydrationWarning
           >
             {isRegistering ? "Back to Login" : "Initialize New Operator Account"}

@@ -1,9 +1,10 @@
 
 "use client"
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useDoc } from '@/firebase';
+import { doc } from 'firebase/firestore';
 import { SidebarNav } from '@/components/dashboard/SidebarNav';
 import { TradingStats } from '@/components/dashboard/TradingStats';
 import { MarketChart3D } from '@/components/trading/MarketChart3D';
@@ -15,10 +16,15 @@ import { LineChart, Search, Bell, User, Maximize2, Loader2 } from 'lucide-react'
 
 export default function Home() {
   const { user, loading: userLoading } = useUser();
+  const db = useFirestore();
   const [data, setData] = useState<OHLC[]>([]);
   const [symbol, setSymbol] = useState('BTC/USDT');
   const [marketLoading, setMarketLoading] = useState(true);
   const router = useRouter();
+
+  // Fetch user profile for real balance
+  const userRef = useMemo(() => (db && user ? doc(db, 'users', user.uid) : null), [db, user]);
+  const { data: profile } = useDoc(userRef);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -27,7 +33,7 @@ export default function Home() {
     }
   }, [user, userLoading, router]);
 
-  // Fetch real-time data
+  // Fetch real-time market data
   useEffect(() => {
     if (!user) return;
 
@@ -55,6 +61,9 @@ export default function Home() {
 
   if (!user) return null;
 
+  const currentPrice = data.length > 0 ? data[data.length - 1].close : 0;
+  const virtualBalance = profile?.virtualBalance ?? 10000;
+
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <SidebarNav />
@@ -78,10 +87,12 @@ export default function Home() {
               <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
             </button>
             <div className="flex items-center gap-3 bg-primary/10 pl-4 pr-2 py-1.5 rounded-full border border-primary/20">
-              <span className="text-sm font-headline text-white">$10,450.20</span>
-              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+              <span className="text-sm font-headline text-white">
+                ${virtualBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </span>
+              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center overflow-hidden">
                 {user.photoURL ? (
-                  <img src={user.photoURL} alt="User" className="w-full h-full rounded-full" />
+                  <img src={user.photoURL} alt="User" className="w-full h-full object-cover" />
                 ) : (
                   <User className="w-4 h-4 text-white" />
                 )}
@@ -91,8 +102,8 @@ export default function Home() {
         </header>
 
         <TradingStats 
-          balance={10450.20} 
-          pnl={450.20} 
+          balance={virtualBalance} 
+          pnl={virtualBalance - 10000} 
           winRate={68} 
           trades={14} 
         />
@@ -133,7 +144,7 @@ export default function Home() {
                    <div className="absolute top-4 left-4 p-3 bg-background/80 backdrop-blur-md rounded-lg border border-primary/20 space-y-1">
                       <p className="text-[10px] font-headline text-muted-foreground uppercase">Current Price</p>
                       <p className="text-xl font-headline font-bold text-accent glow-green">
-                        ${data[data.length-1].close.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        ${currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </p>
                       <div className="flex items-center gap-1 text-[10px] font-headline text-accent">
                         <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
