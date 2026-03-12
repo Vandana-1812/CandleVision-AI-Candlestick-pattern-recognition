@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Zap, LogIn, AlertCircle, Loader2, Info } from 'lucide-react';
+import { Zap, LogIn, AlertCircle, Loader2, Info, UserPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -47,9 +47,8 @@ export default function LoginPage() {
     
     setIsLoading(true);
     try {
-      let userCredential;
       if (isRegistering) {
-        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         
         // Initialize user profile in Firestore
         if (db) {
@@ -60,6 +59,8 @@ export default function LoginPage() {
             displayName: email.split('@')[0],
             virtualBalance: 10000,
             createdAt: serverTimestamp(),
+            tradesCount: 0,
+            winRate: 0,
           };
 
           setDoc(userRef, profileData, { merge: true })
@@ -87,9 +88,14 @@ export default function LoginPage() {
         message = "Login Provider Disabled";
         setErrorDetails("The Email/Password sign-in provider is not enabled in your Firebase Console. Go to Authentication > Sign-in method to enable it.");
       } else if (error.code === 'auth/invalid-credential') {
-        message = "Invalid credentials. Please check your terminal ID and access key.";
+        message = "Invalid access credentials.";
+        setErrorDetails("Ensure your password is correct. If you haven't created an account yet, click 'Initialize New Operator Account' below.");
       } else if (error.code === 'auth/email-already-in-use') {
-        message = "Operator ID already exists. Try logging in instead.";
+        message = "Operator ID already exists.";
+        setErrorDetails("This email is already registered. Please try logging in instead.");
+      } else if (error.code === 'auth/weak-password') {
+        message = "Access key too weak.";
+        setErrorDetails("Password should be at least 6 characters long.");
       }
       
       toast({ 
@@ -118,6 +124,8 @@ export default function LoginPage() {
           displayName: userCredential.user.displayName,
           virtualBalance: 10000,
           createdAt: serverTimestamp(),
+          tradesCount: 0,
+          winRate: 0,
         };
 
         setDoc(userRef, profileData, { merge: true })
@@ -180,7 +188,7 @@ export default function LoginPage() {
           {errorDetails && (
             <Alert className="bg-primary/10 border-primary/20 text-primary">
               <Info className="h-4 w-4" />
-              <AlertTitle className="text-xs uppercase font-headline">Console Setup Required</AlertTitle>
+              <AlertTitle className="text-xs uppercase font-headline">Action Required</AlertTitle>
               <AlertDescription className="text-[11px] leading-tight">
                 {errorDetails}
               </AlertDescription>
@@ -227,8 +235,17 @@ export default function LoginPage() {
                 </>
               ) : (
                 <>
-                  {isRegistering ? "CREATE ACCOUNT" : "AUTHORIZE ACCESS"}
-                  <LogIn className="ml-2 w-4 h-4" />
+                  {isRegistering ? (
+                    <>
+                      CREATE ACCOUNT
+                      <UserPlus className="ml-2 w-4 h-4" />
+                    </>
+                  ) : (
+                    <>
+                      AUTHORIZE ACCESS
+                      <LogIn className="ml-2 w-4 h-4" />
+                    </>
+                  )}
                 </>
               )}
             </Button>
