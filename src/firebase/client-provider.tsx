@@ -9,7 +9,8 @@ export function FirebaseClientProvider({
 }: {
   children: React.ReactNode;
 }) {
-  // Initialize Firebase only once on the client
+  // Initialize Firebase only once on the client. 
+  // If config is missing, app, auth, and db will be null.
   const { app, auth, db } = useMemo(() => initializeFirebase(), []);
 
   return (

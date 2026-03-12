@@ -1,7 +1,6 @@
-
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   signInWithEmailAndPassword, 
@@ -10,12 +9,14 @@ import {
   GoogleAuthProvider 
 } from 'firebase/auth';
 import { useAuth } from '@/firebase';
+import { isConfigValid } from '@/firebase/config';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Zap, LogIn } from 'lucide-react';
+import { Zap, LogIn, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -29,7 +30,14 @@ export default function LoginPage() {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth) return;
+    if (!auth || !isConfigValid) {
+      toast({ 
+        variant: "destructive", 
+        title: "Setup Required", 
+        description: "Please configure your Firebase API keys in the environment variables." 
+      });
+      return;
+    }
     
     setIsLoading(true);
     try {
@@ -42,10 +50,14 @@ export default function LoginPage() {
       }
       router.push('/');
     } catch (error: any) {
+      let message = error.message;
+      if (error.code === 'auth/operation-not-allowed') {
+        message = "Email/Password sign-in is not enabled in your Firebase Console.";
+      }
       toast({ 
         variant: "destructive", 
         title: "Authentication Error", 
-        description: error.message 
+        description: message 
       });
     } finally {
       setIsLoading(false);
@@ -53,16 +65,20 @@ export default function LoginPage() {
   };
 
   const handleGoogleSignIn = async () => {
-    if (!auth) return;
+    if (!auth || !isConfigValid) return;
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
       router.push('/');
     } catch (error: any) {
+      let message = error.message;
+      if (error.code === 'auth/operation-not-allowed') {
+        message = "Google sign-in is not enabled in your Firebase Console.";
+      }
       toast({ 
         variant: "destructive", 
         title: "Google Sign-In Error", 
-        description: error.message 
+        description: message 
       });
     }
   };
@@ -87,8 +103,18 @@ export default function LoginPage() {
           </div>
         </CardHeader>
         
-        <form onSubmit={handleAuth}>
-          <CardContent className="space-y-4">
+        <CardContent className="space-y-4">
+          {!isConfigValid && (
+            <Alert variant="destructive" className="bg-destructive/10 border-destructive/20">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Configuration Missing</AlertTitle>
+              <AlertDescription className="text-xs">
+                Firebase API keys are missing. Please set your <code>.env</code> variables using the values from the Firebase Console.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <form onSubmit={handleAuth} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Terminal ID (Email)</Label>
               <Input 
@@ -98,6 +124,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={!isConfigValid}
                 className="bg-background/50 border-white/10"
               />
             </div>
@@ -109,43 +136,47 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                disabled={!isConfigValid}
                 className="bg-background/50 border-white/10"
               />
             </div>
-          </CardContent>
-          <CardFooter className="flex flex-col gap-4">
+            
             <Button 
               type="submit" 
               className="w-full bg-primary hover:bg-primary/80 text-white font-headline"
-              disabled={isLoading}
+              disabled={isLoading || !isConfigValid}
             >
               {isLoading ? "PROCESING..." : (isRegistering ? "CREATE ACCOUNT" : "AUTHORIZE ACCESS")}
               <LogIn className="ml-2 w-4 h-4" />
             </Button>
-            
-            <div className="relative w-full py-2">
-              <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-white/10"></span></div>
-              <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">Or Connect Via</span></div>
-            </div>
+          </form>
+        </CardContent>
 
-            <Button 
-              type="button" 
-              variant="outline" 
-              className="w-full border-white/10 hover:bg-white/5 font-headline text-xs"
-              onClick={handleGoogleSignIn}
-            >
-              GOOGLE TERMINAL
-            </Button>
+        <CardFooter className="flex flex-col gap-4">
+          <div className="relative w-full py-2">
+            <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-white/10"></span></div>
+            <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">Or Connect Via</span></div>
+          </div>
 
-            <button 
-              type="button"
-              className="text-xs text-muted-foreground hover:text-primary transition-colors mt-2"
-              onClick={() => setIsRegistering(!isRegistering)}
-            >
-              {isRegistering ? "Back to Login" : "Initialize New Operator Account"}
-            </button>
-          </CardFooter>
-        </form>
+          <Button 
+            type="button" 
+            variant="outline" 
+            className="w-full border-white/10 hover:bg-white/5 font-headline text-xs"
+            onClick={handleGoogleSignIn}
+            disabled={!isConfigValid}
+          >
+            GOOGLE TERMINAL
+          </Button>
+
+          <button 
+            type="button"
+            className="text-xs text-muted-foreground hover:text-primary transition-colors mt-2"
+            onClick={() => setIsRegistering(!isRegistering)}
+            disabled={!isConfigValid}
+          >
+            {isRegistering ? "Back to Login" : "Initialize New Operator Account"}
+          </button>
+        </CardFooter>
       </Card>
     </div>
   );
