@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -11,7 +12,8 @@ import { AISignalPanel } from '@/components/trading/AISignalPanel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { fetchRealOHLC, OHLC } from '@/lib/market-data';
-import { LineChart, Search, Bell, User, Maximize2, Loader2 } from 'lucide-react';
+import { LineChart, Search, Bell, User, Maximize2, Loader2, AlertCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function Home() {
   const { user, loading: userLoading } = useUser();
@@ -20,7 +22,9 @@ export default function Home() {
   const [symbol, setSymbol] = useState('BTCUSDT');
   const [searchInput, setSearchInput] = useState('BTCUSDT');
   const [marketLoading, setMarketLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { toast } = useToast();
 
   // Fetch user profile for real balance
   const userRef = useMemo(() => (db && user ? doc(db, 'users', user.uid) : null), [db, user]);
@@ -39,13 +43,21 @@ export default function Home() {
 
     const loadData = async () => {
       setMarketLoading(true);
+      setError(null);
       try {
         const result = await fetchRealOHLC(symbol);
-        if (result.length > 0) {
+        if (result && result.length > 0) {
           setData(result);
+        } else {
+          setError(`Symbol "${symbol}" not found on the operative exchange.`);
+          toast({
+            variant: "destructive",
+            title: "Asset Unavailable",
+            description: `The symbol "${symbol}" is not currently supported by the active data stream.`
+          });
         }
       } catch (e) {
-        console.error("Failed to load symbol", symbol);
+        setError("Synchronization failure with market data stream.");
       } finally {
         setMarketLoading(false);
       }
@@ -56,11 +68,13 @@ export default function Home() {
     // Poll for updates every 30 seconds
     const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
-  }, [symbol, user]);
+  }, [symbol, user, toast]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    setSymbol(searchInput.toUpperCase().replace('/', ''));
+    if (searchInput.trim()) {
+      setSymbol(searchInput.toUpperCase().replace('/', ''));
+    }
   };
 
   if (userLoading || (user && profileLoading)) {
@@ -86,7 +100,7 @@ export default function Home() {
             <Search className="w-4 h-4 text-muted-foreground" />
             <input 
               type="text" 
-              placeholder="Search (e.g. BTCUSDT, ETHBTC)..." 
+              placeholder="Search (e.g. BTCUSDT, ETH, SOL)..." 
               className="bg-transparent border-none outline-none text-sm w-full font-body"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -149,10 +163,22 @@ export default function Home() {
                    <div className="w-full h-full flex items-center justify-center">
                      <Loader2 className="w-8 h-8 text-primary animate-spin" />
                    </div>
+                 ) : error ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-center p-6 text-muted-foreground">
+                      <AlertCircle className="w-12 h-12 mb-4 text-destructive opacity-50" />
+                      <p className="font-headline text-lg uppercase mb-2">Synchronization Error</p>
+                      <p className="max-w-md text-sm">{error}</p>
+                      <button 
+                        onClick={() => setSymbol('BTCUSDT')}
+                        className="mt-6 px-6 py-2 bg-primary/20 hover:bg-primary/30 border border-primary/40 rounded-lg text-xs font-headline transition-all"
+                      >
+                        RESET TO DEFAULT FEED
+                      </button>
+                    </div>
                  ) : (
                    <MarketChart3D data={data} />
                  )}
-                 {!marketLoading && data.length > 0 && (
+                 {!marketLoading && !error && data.length > 0 && (
                    <div className="absolute top-4 left-4 p-3 bg-background/80 backdrop-blur-md rounded-lg border border-primary/20 space-y-1 z-10">
                       <p className="text-[10px] font-headline text-muted-foreground uppercase">Current Price</p>
                       <p className="text-xl font-headline font-bold text-accent glow-green" suppressHydrationWarning>
@@ -200,7 +226,7 @@ export default function Home() {
                 <div className="flex gap-4">
                   <div className="flex-1 p-3 rounded-lg bg-accent/5 border border-accent/20">
                     <p className="text-[10px] font-headline text-accent uppercase mb-1">Exchange Connection</p>
-                    <p className="text-lg font-bold">Active</p>
+                    <p className="text-lg font-bold">{error ? 'Limited' : 'Active'}</p>
                   </div>
                    <div className="flex-1 p-3 rounded-lg bg-primary/5 border border-primary/20">
                     <p className="text-[10px] font-headline text-primary uppercase mb-1">Latency</p>

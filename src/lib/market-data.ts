@@ -10,16 +10,15 @@ export interface OHLC {
 
 /**
  * Fetches real-time OHLC data from Binance Public API.
- * @param symbol Trading pair (e.g., BTCUSDT, AAPL - if available on Binance as wrapped or similar)
+ * @param symbol Trading pair (e.g., BTCUSDT)
  * @param interval Timeframe (e.g., 1h, 1m, 1d)
  * @param limit Number of candles
  */
 export async function fetchRealOHLC(symbol: string = 'BTCUSDT', interval: string = '1h', limit: number = 60): Promise<OHLC[]> {
   // Clean symbol (remove slash if present)
-  // Binance needs symbols like BTCUSDT
   let cleanSymbol = symbol.replace('/', '').toUpperCase();
   
-  // Binance common patterns fix
+  // Common mapping fixes
   if (cleanSymbol === 'BTC') cleanSymbol = 'BTCUSDT';
   if (cleanSymbol === 'ETH') cleanSymbol = 'ETHUSDT';
   if (cleanSymbol === 'SOL') cleanSymbol = 'SOLUSDT';
@@ -28,14 +27,18 @@ export async function fetchRealOHLC(symbol: string = 'BTCUSDT', interval: string
 
   try {
     const response = await fetch(url);
+    
     if (!response.ok) {
-      // Try adding USDT if it's missing (fallback for users searching just 'BTC')
-      if (!cleanSymbol.endsWith('USDT')) {
+      // If we didn't try USDT yet, try it once as a fallback
+      if (!cleanSymbol.endsWith('USDT') && !cleanSymbol.includes('BTC') && !cleanSymbol.includes('ETH')) {
         return fetchRealOHLC(cleanSymbol + 'USDT', interval, limit);
       }
-      throw new Error('Symbol not found on exchange');
+      return [];
     }
+    
     const data = await response.json();
+
+    if (!Array.isArray(data)) return [];
 
     return data.map((d: any) => ({
       timestamp: new Date(d[0]).toISOString(),
@@ -46,7 +49,7 @@ export async function fetchRealOHLC(symbol: string = 'BTCUSDT', interval: string
       volume: parseFloat(d[5]),
     }));
   } catch (error) {
-    console.error("Market data fetch error for symbol:", cleanSymbol, error);
+    // Gracefully return empty array on network errors or non-existent symbols
     return [];
   }
 }
