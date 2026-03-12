@@ -5,21 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { 
   Sparkles, 
   BrainCircuit, 
   Info, 
   CheckCircle2, 
   AlertTriangle, 
   Loader2, 
-  Cpu,
-  Layers
+  Cpu
 } from 'lucide-react';
 import { generateTradingSignals, GenerateTradingSignalOutput } from '@/ai/flows/generate-trading-signals';
 import { explainTradingSignals, ExplainTradingSignalOutput } from '@/ai/flows/explain-trading-signals';
@@ -31,15 +23,8 @@ interface AISignalPanelProps {
   symbol: string;
 }
 
-const SUPPORTED_MODELS = [
-  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', desc: 'Speed Optimized', icon: Cpu },
-  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', desc: 'Deep Analysis', icon: BrainCircuit },
-  { id: 'gemini-2.0-flash-001', name: 'Gemini 2.0 Flash', desc: 'Cutting Edge', icon: Sparkles },
-];
-
 export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol }) => {
   const [loading, setLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('gemini-1.5-flash');
   const [signal, setSignal] = useState<GenerateTradingSignalOutput | null>(null);
   const [explanation, setExplanation] = useState<ExplainTradingSignalOutput | null>(null);
   const { toast } = useToast();
@@ -81,7 +66,7 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
         variant: "destructive",
         title: "AI Pipeline Offline",
         description: error.message?.includes('503') 
-          ? "The AI model is currently at capacity. Please wait a moment and try again." 
+          ? "The AI service is currently at capacity. Please try again in a moment." 
           : "Failed to process market intelligence. Check your connectivity.",
       });
     } finally {
@@ -98,7 +83,7 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
               <BrainCircuit className="w-5 h-5 text-primary" />
               AI STRATEGY TERMINAL
             </CardTitle>
-            <CardDescription className="text-[10px] uppercase tracking-wider">Neural Analysis Pipeline</CardDescription>
+            <CardDescription className="text-[10px] uppercase tracking-wider">Neural Analysis Engine Active</CardDescription>
           </div>
           <Button 
             onClick={getSignal} 
@@ -118,36 +103,13 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
             )}
           </Button>
         </div>
-
-        <div className="flex flex-col gap-2">
-          <p className="text-[10px] font-headline text-muted-foreground uppercase flex items-center gap-1.5">
-            <Layers className="w-3 h-3" />
-            Intelligence Engine
-          </p>
-          <Select value={selectedModel} onValueChange={setSelectedModel}>
-            <SelectTrigger className="bg-background/40 border-white/10 h-8 text-[11px] font-headline">
-              <SelectValue placeholder="Select Model" />
-            </SelectTrigger>
-            <SelectContent className="bg-card border-white/10">
-              {SUPPORTED_MODELS.map((model) => (
-                <SelectItem key={model.id} value={model.id} className="text-[11px] font-headline">
-                  <div className="flex items-center gap-2">
-                    <model.icon className="w-3 h-3 text-primary" />
-                    <span>{model.name}</span>
-                    <span className="text-[9px] text-muted-foreground opacity-60">({model.desc})</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
       </CardHeader>
 
       <CardContent className="flex-1 overflow-y-auto space-y-6 scrollbar-hide">
         {loading && (
           <div className="flex flex-col items-center justify-center py-20 space-y-4 animate-pulse">
             <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-              <BrainCircuit className="w-6 h-6 text-primary animate-bounce" />
+              <Cpu className="w-6 h-6 text-primary animate-bounce" />
             </div>
             <p className="font-headline text-[10px] text-muted-foreground uppercase tracking-widest">Processing Market Context...</p>
           </div>
@@ -233,7 +195,7 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
             </div>
             <p className="font-headline text-xs tracking-widest text-muted-foreground">WAITING FOR OPERATIVE INPUT</p>
             <p className="text-[10px] mt-2 max-w-[200px] leading-relaxed">
-              Select an intelligence engine and click generate to initialize neural analysis for {symbol} market data.
+              Click generate to initialize neural analysis for {symbol} market data.
             </p>
           </div>
         )}
