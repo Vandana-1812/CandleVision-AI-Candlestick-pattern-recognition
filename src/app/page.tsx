@@ -18,13 +18,13 @@ export default function Home() {
   const { user, loading: userLoading } = useUser();
   const db = useFirestore();
   const [data, setData] = useState<OHLC[]>([]);
-  const [symbol, setSymbol] = useState('BTC/USDT');
+  const [symbol, setSymbol] = useState('BTCUSDT');
   const [marketLoading, setMarketLoading] = useState(true);
   const router = useRouter();
 
   // Fetch user profile for real balance
   const userRef = useMemo(() => (db && user ? doc(db, 'users', user.uid) : null), [db, user]);
-  const { data: profile } = useDoc(userRef);
+  const { data: profile, loading: profileLoading } = useDoc(userRef);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -51,7 +51,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [symbol, user]);
 
-  if (userLoading) {
+  if (userLoading || (user && profileLoading)) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-10 h-10 text-primary animate-spin" />
@@ -74,10 +74,10 @@ export default function Home() {
             <Search className="w-4 h-4 text-muted-foreground" />
             <input 
               type="text" 
-              placeholder="Search assets (e.g. BTC/USDT)..." 
+              placeholder="Asset Symbol (e.g. BTCUSDT)..." 
               className="bg-transparent border-none outline-none text-sm w-full font-body"
               value={symbol}
-              onChange={(e) => setSymbol(e.target.value)}
+              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
               suppressHydrationWarning
             />
           </div>
@@ -87,10 +87,10 @@ export default function Home() {
               <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
             </button>
             <div className="flex items-center gap-3 bg-primary/10 pl-4 pr-2 py-1.5 rounded-full border border-primary/20">
-              <span className="text-sm font-headline text-white">
+              <span className="text-sm font-headline text-white" suppressHydrationWarning>
                 ${virtualBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </span>
-              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center overflow-hidden">
+              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center overflow-hidden border border-primary/30">
                 {user.photoURL ? (
                   <img src={user.photoURL} alt="User" className="w-full h-full object-cover" />
                 ) : (
@@ -104,8 +104,8 @@ export default function Home() {
         <TradingStats 
           balance={virtualBalance} 
           pnl={virtualBalance - 10000} 
-          winRate={68} 
-          trades={14} 
+          winRate={profile?.winRate ?? 0} 
+          trades={profile?.tradesCount ?? 0} 
         />
 
         <div className="grid grid-cols-12 gap-6 h-[calc(100vh-250px)]">
@@ -117,7 +117,7 @@ export default function Home() {
                     <LineChart className="w-5 h-5 text-primary" />
                     Live Holographic Feed
                   </CardTitle>
-                  <p className="text-xs text-muted-foreground font-body">Real-time OHLC from Exchange</p>
+                  <p className="text-xs text-muted-foreground font-body">Real-time OHLC from Binance Exchange</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Tabs defaultValue="1h" className="w-[200px]">
@@ -141,9 +141,9 @@ export default function Home() {
                    <MarketChart3D data={data} />
                  )}
                  {!marketLoading && data.length > 0 && (
-                   <div className="absolute top-4 left-4 p-3 bg-background/80 backdrop-blur-md rounded-lg border border-primary/20 space-y-1">
+                   <div className="absolute top-4 left-4 p-3 bg-background/80 backdrop-blur-md rounded-lg border border-primary/20 space-y-1 z-10">
                       <p className="text-[10px] font-headline text-muted-foreground uppercase">Current Price</p>
-                      <p className="text-xl font-headline font-bold text-accent glow-green">
+                      <p className="text-xl font-headline font-bold text-accent glow-green" suppressHydrationWarning>
                         ${currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </p>
                       <div className="flex items-center gap-1 text-[10px] font-headline text-accent">
@@ -182,13 +182,13 @@ export default function Home() {
 
            <Card className="holographic-card col-span-2">
               <CardHeader className="pb-2">
-                <CardTitle className="font-headline text-sm uppercase glow-blue">Recent Market Sentiment</CardTitle>
+                <CardTitle className="font-headline text-sm uppercase glow-blue">Market Status</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex gap-4">
                   <div className="flex-1 p-3 rounded-lg bg-accent/5 border border-accent/20">
-                    <p className="text-[10px] font-headline text-accent uppercase mb-1">Exchange Status</p>
-                    <p className="text-lg font-bold">Online</p>
+                    <p className="text-[10px] font-headline text-accent uppercase mb-1">Exchange Connection</p>
+                    <p className="text-lg font-bold">Active</p>
                   </div>
                    <div className="flex-1 p-3 rounded-lg bg-primary/5 border border-primary/20">
                     <p className="text-[10px] font-headline text-primary uppercase mb-1">Latency</p>
@@ -196,7 +196,7 @@ export default function Home() {
                   </div>
                    <div className="flex-1 p-3 rounded-lg bg-destructive/5 border border-destructive/20">
                     <p className="text-[10px] font-headline text-destructive uppercase mb-1">Volatility</p>
-                    <p className="text-lg font-bold">Medium</p>
+                    <p className="text-lg font-bold">Moderate</p>
                   </div>
                 </div>
               </CardContent>
