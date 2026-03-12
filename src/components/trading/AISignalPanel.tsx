@@ -4,11 +4,11 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Sparkles, BrainCircuit, Info, CheckCircle2, AlertTriangle, ChevronRight, Loader2 } from 'lucide-react';
+import { Sparkles, BrainCircuit, Info, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import { generateTradingSignals, GenerateTradingSignalOutput } from '@/ai/flows/generate-trading-signals';
 import { explainTradingSignals, ExplainTradingSignalOutput } from '@/ai/flows/explain-trading-signals';
 import { OHLC } from '@/lib/market-data';
+import { useToast } from '@/hooks/use-toast';
 
 interface AISignalPanelProps {
   marketData: OHLC[];
@@ -19,6 +19,7 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
   const [loading, setLoading] = useState(false);
   const [signal, setSignal] = useState<GenerateTradingSignalOutput | null>(null);
   const [explanation, setExplanation] = useState<ExplainTradingSignalOutput | null>(null);
+  const { toast } = useToast();
 
   const getSignal = async () => {
     if (!marketData.length) return;
@@ -35,7 +36,7 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
         ohlcData: marketData.slice(-50),
         currentPrice: marketData[marketData.length - 1].close,
         technicalIndicators: {
-          rsi: 62, // Simulated or calculated
+          rsi: 62,
           bollingerBands: { upper: 105, middle: 100, lower: 95 }
         }
       });
@@ -51,8 +52,15 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
         priceMomentum: 'Stabilizing'
       });
       setExplanation(exp);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Signal Generation Error:", error);
+      toast({
+        variant: "destructive",
+        title: "AI Pipeline Offline",
+        description: error.message?.includes('503') 
+          ? "The AI model is currently at capacity. Please wait a moment and try again." 
+          : "Failed to process market intelligence. Check your connectivity.",
+      });
     } finally {
       setLoading(false);
     }
@@ -101,7 +109,6 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
 
         {signal && explanation && !loading && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Header Result */}
             <div className="grid grid-cols-2 gap-3">
               <div className="p-4 rounded-xl bg-background/40 border border-white/5 space-y-1">
                 <p className="text-[10px] font-headline text-muted-foreground uppercase">Action</p>
@@ -126,7 +133,6 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
               </div>
             </div>
 
-            {/* Step-wise Summary */}
             <div className="space-y-4">
               <div className="bg-primary/5 rounded-xl p-4 border border-primary/20">
                 <h4 className="text-[10px] font-headline text-primary mb-2 uppercase flex items-center gap-2">
@@ -138,7 +144,6 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
                 </p>
               </div>
 
-              {/* Steps List */}
               <div className="space-y-3">
                 <h4 className="text-[10px] font-headline text-muted-foreground uppercase flex items-center gap-2">
                   <CheckCircle2 className="w-3 h-3 text-accent" />
@@ -161,7 +166,6 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
                 </div>
               </div>
 
-              {/* Conclusion / Warning */}
               <div className="p-4 rounded-xl bg-destructive/5 border border-destructive/20 mt-4">
                 <h4 className="text-[10px] font-headline text-destructive mb-1 uppercase flex items-center gap-2">
                   <AlertTriangle className="w-3 h-3" />
