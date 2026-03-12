@@ -1,3 +1,4 @@
+
 export interface OHLC {
   timestamp: string;
   open: number;
@@ -7,31 +8,34 @@ export interface OHLC {
   volume: number;
 }
 
-export function generateMockOHLC(count: number = 50, symbol: string = 'BTC/USD'): OHLC[] {
-  let lastClose = 45000 + Math.random() * 5000;
-  const data: OHLC[] = [];
-  const now = new Date();
+/**
+ * Fetches real-time OHLC data from Binance Public API.
+ * @param symbol Trading pair (e.g., BTCUSDT)
+ * @param interval Timeframe (e.g., 1h, 1m, 1d)
+ * @param limit Number of candles
+ */
+export async function fetchRealOHLC(symbol: string = 'BTCUSDT', interval: string = '1h', limit: number = 60): Promise<OHLC[]> {
+  // Clean symbol (remove slash if present)
+  const cleanSymbol = symbol.replace('/', '').toUpperCase();
+  const url = `https://api.binance.com/api/v3/klines?symbol=${cleanSymbol}&interval=${interval}&limit=${limit}`;
 
-  for (let i = count; i >= 0; i--) {
-    const time = new Date(now.getTime() - i * 60 * 60 * 1000);
-    const volatility = lastClose * 0.02;
-    const open = lastClose;
-    const close = open + (Math.random() - 0.5) * volatility;
-    const high = Math.max(open, close) + Math.random() * volatility * 0.5;
-    const low = Math.min(open, close) - Math.random() * volatility * 0.5;
-    const volume = Math.random() * 1000 + 500;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Failed to fetch market data');
+    const data = await response.json();
 
-    data.push({
-      timestamp: time.toISOString(),
-      open,
-      high,
-      low,
-      close,
-      volume,
-    });
-    lastClose = close;
+    return data.map((d: any) => ({
+      timestamp: new Date(d[0]).toISOString(),
+      open: parseFloat(d[1]),
+      high: parseFloat(d[2]),
+      low: parseFloat(d[3]),
+      close: parseFloat(d[4]),
+      volume: parseFloat(d[5]),
+    }));
+  } catch (error) {
+    console.error("Market data fetch error:", error);
+    return [];
   }
-  return data;
 }
 
 export function calculateRSI(data: OHLC[], period: number = 14): number[] {
@@ -62,13 +66,4 @@ export function calculateRSI(data: OHLC[], period: number = 14): number[] {
     rsi[i] = 100 - 100 / (1 + rs);
   }
   return rsi;
-}
-
-export function calculateSMA(data: OHLC[], period: number): number[] {
-  const sma: number[] = new Array(data.length).fill(0);
-  for (let i = period - 1; i < data.length; i++) {
-    const sum = data.slice(i - period + 1, i + 1).reduce((acc, bar) => acc + bar.close, 0);
-    sma[i] = sum / period;
-  }
-  return sma;
 }

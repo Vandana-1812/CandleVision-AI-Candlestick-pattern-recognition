@@ -1,3 +1,4 @@
+
 "use client"
 
 import React from 'react';
@@ -8,9 +9,13 @@ import {
   Trophy, 
   History, 
   Settings,
-  Zap
+  Zap,
+  LogOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/firebase';
+import { signOut } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', active: true },
@@ -22,6 +27,15 @@ const navItems = [
 ];
 
 export const SidebarNav: React.FC = () => {
+  const auth = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    if (!auth) return;
+    await signOut(auth);
+    router.push('/login');
+  };
+
   return (
     <div className="flex flex-col h-full bg-card/50 backdrop-blur-xl border-r border-primary/20 w-64 p-4 space-y-8">
       <div className="flex items-center gap-3 px-2">
@@ -37,6 +51,7 @@ export const SidebarNav: React.FC = () => {
         {navItems.map((item) => (
           <button
             key={item.label}
+            suppressHydrationWarning
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 font-headline text-sm uppercase tracking-wider",
               item.active 
@@ -50,12 +65,22 @@ export const SidebarNav: React.FC = () => {
         ))}
       </nav>
 
-      <div className="p-4 rounded-xl bg-gradient-to-br from-primary/10 to-transparent border border-primary/20">
-        <p className="text-xs font-headline text-primary mb-2">PRO STATUS</p>
-        <p className="text-sm font-medium">Expert Mode Active</p>
-        <div className="mt-3 h-1.5 w-full bg-muted rounded-full overflow-hidden">
-          <div className="h-full bg-primary w-3/4" />
+      <div className="space-y-4">
+        <div className="p-4 rounded-xl bg-gradient-to-br from-primary/10 to-transparent border border-primary/20">
+          <p className="text-xs font-headline text-primary mb-2">PRO STATUS</p>
+          <p className="text-sm font-medium">Operator Mode Active</p>
+          <div className="mt-3 h-1.5 w-full bg-muted rounded-full overflow-hidden">
+            <div className="h-full bg-primary w-3/4" />
+          </div>
         </div>
+
+        <button 
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 font-headline text-xs uppercase tracking-wider text-muted-foreground hover:bg-destructive/10 hover:text-destructive border border-transparent hover:border-destructive/20"
+        >
+          <LogOut className="w-4 h-4" />
+          Sign Out Terminal
+        </button>
       </div>
     </div>
   );
