@@ -4,7 +4,23 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, BrainCircuit, Info, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { 
+  Sparkles, 
+  BrainCircuit, 
+  Info, 
+  CheckCircle2, 
+  AlertTriangle, 
+  Loader2, 
+  Cpu,
+  Layers
+} from 'lucide-react';
 import { generateTradingSignals, GenerateTradingSignalOutput } from '@/ai/flows/generate-trading-signals';
 import { explainTradingSignals, ExplainTradingSignalOutput } from '@/ai/flows/explain-trading-signals';
 import { OHLC } from '@/lib/market-data';
@@ -15,8 +31,15 @@ interface AISignalPanelProps {
   symbol: string;
 }
 
+const SUPPORTED_MODELS = [
+  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', desc: 'Speed Optimized', icon: Cpu },
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', desc: 'Deep Analysis', icon: BrainCircuit },
+  { id: 'gemini-2.0-flash-001', name: 'Gemini 2.0 Flash', desc: 'Cutting Edge', icon: Sparkles },
+];
+
 export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol }) => {
   const [loading, setLoading] = useState(false);
+  const [selectedModel, setSelectedModel] = useState('gemini-1.5-flash');
   const [signal, setSignal] = useState<GenerateTradingSignalOutput | null>(null);
   const [explanation, setExplanation] = useState<ExplainTradingSignalOutput | null>(null);
   const { toast } = useToast();
@@ -68,7 +91,7 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
 
   return (
     <Card className="holographic-card h-full flex flex-col border-primary/20">
-      <CardHeader className="pb-4">
+      <CardHeader className="pb-4 space-y-4">
         <div className="flex items-center justify-between gap-4">
           <div className="space-y-1">
             <CardTitle className="font-headline text-lg glow-blue flex items-center gap-2">
@@ -94,6 +117,29 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
               </>
             )}
           </Button>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <p className="text-[10px] font-headline text-muted-foreground uppercase flex items-center gap-1.5">
+            <Layers className="w-3 h-3" />
+            Intelligence Engine
+          </p>
+          <Select value={selectedModel} onValueChange={setSelectedModel}>
+            <SelectTrigger className="bg-background/40 border-white/10 h-8 text-[11px] font-headline">
+              <SelectValue placeholder="Select Model" />
+            </SelectTrigger>
+            <SelectContent className="bg-card border-white/10">
+              {SUPPORTED_MODELS.map((model) => (
+                <SelectItem key={model.id} value={model.id} className="text-[11px] font-headline">
+                  <div className="flex items-center gap-2">
+                    <model.icon className="w-3 h-3 text-primary" />
+                    <span>{model.name}</span>
+                    <span className="text-[9px] text-muted-foreground opacity-60">({model.desc})</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </CardHeader>
 
@@ -187,7 +233,7 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
             </div>
             <p className="font-headline text-xs tracking-widest text-muted-foreground">WAITING FOR OPERATIVE INPUT</p>
             <p className="text-[10px] mt-2 max-w-[200px] leading-relaxed">
-              Click generate to initialize neural analysis for {symbol} market data.
+              Select an intelligence engine and click generate to initialize neural analysis for {symbol} market data.
             </p>
           </div>
         )}
