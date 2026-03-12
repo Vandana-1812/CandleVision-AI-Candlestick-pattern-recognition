@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   signInWithEmailAndPassword, 
@@ -88,7 +88,7 @@ export default function LoginPage() {
       <div className="absolute inset-0 opacity-10 pointer-events-none" 
            style={{ backgroundImage: 'radial-gradient(circle at 50% 50%, #2a5a9f 0%, transparent 100%)' }} />
       
-      <Card className="w-full max-w-md holographic-card border-primary/30 z-10">
+      <Card className="w-full max-w-md holographic-card border-primary/30 z-10" suppressHydrationWarning>
         <CardHeader className="space-y-4 flex flex-col items-center text-center">
           <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(42,90,159,0.8)]">
             <Zap className="text-white fill-current" />
@@ -170,9 +170,10 @@ export default function LoginPage() {
 
           <button 
             type="button"
-            className="text-xs text-muted-foreground hover:text-primary transition-colors mt-2"
+            className="text-xs text-muted-foreground hover:text-primary transition-colors mt-2 outline-none"
             onClick={() => setIsRegistering(!isRegistering)}
             disabled={!isConfigValid}
+            suppressHydrationWarning
           >
             {isRegistering ? "Back to Login" : "Initialize New Operator Account"}
           </button>
