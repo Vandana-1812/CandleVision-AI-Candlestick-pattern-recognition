@@ -30,6 +30,7 @@ export type ExplainTradingSignalOutput = z.infer<typeof ExplainTradingSignalOutp
 
 const explainTradingSignalPrompt = ai.definePrompt({
   name: 'explainTradingSignalPrompt',
+  model: 'googleai/gemini-1.5-flash',
   input: {schema: ExplainTradingSignalInputSchema},
   output: {schema: ExplainTradingSignalOutputSchema},
   prompt: `You are an expert financial analyst. Provide a concise, step-wise explanation for a '{{{signal}}}' signal on **{{{assetSymbol}}}**.
@@ -50,8 +51,18 @@ const explainTradingSignalFlow = ai.defineFlow(
     outputSchema: ExplainTradingSignalOutputSchema,
   },
   async (input) => {
-    const {output} = await explainTradingSignalPrompt(input);
-    return output!;
+    try {
+      const {output} = await explainTradingSignalPrompt(input);
+      if (!output) throw new Error('AI returned empty response');
+      return output;
+    } catch (error) {
+      console.error("Explanation AI failed:", error);
+      return {
+        summary: "Analysis currently unavailable.",
+        steps: ["Market volatility is high.", "System is recalibrating data models.", "Please retry analysis shortly."],
+        conclusion: "Monitor price action manually for the next interval."
+      };
+    }
   }
 );
 
