@@ -15,8 +15,8 @@ import {
   Cpu,
   History
 } from 'lucide-react';
-import { generateTradingSignals, GenerateTradingSignalOutput } from '@/ai/flows/generate-trading-signals';
-import { explainTradingSignals, ExplainTradingSignalOutput } from '@/ai/flows/explain-trading-signals';
+import { generateTradingSignals } from '@/ai/flows/generate-trading-signals';
+import { explainTradingSignals } from '@/ai/flows/explain-trading-signals';
 import { OHLC } from '@/lib/market-data';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
@@ -29,14 +29,17 @@ interface AISignalPanelProps {
 
 export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol }) => {
   const [loading, setLoading] = useState(false);
-  const [signal, setSignal] = useState<GenerateTradingSignalOutput | null>(null);
-  const [explanation, setExplanation] = useState<ExplainTradingSignalOutput | null>(null);
+  const [signal, setSignal] = useState<any>(null);
+  const [explanation, setExplanation] = useState<any>(null);
   const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
 
   const getSignal = async () => {
-    if (!marketData.length) return;
+    if (!marketData.length) {
+      toast({ title: "Insufficient Data", description: "Wait for market stream to initialize.", variant: "destructive" });
+      return;
+    }
     
     setLoading(true);
     setSignal(null);
@@ -53,7 +56,7 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
         currentPrice,
         technicalIndicators: {
           rsi: 62,
-          bollingerBands: { upper: 105, middle: 100, lower: 95 }
+          bollingerBands: { upper: currentPrice * 1.05, middle: currentPrice, lower: currentPrice * 0.95 }
         }
       });
       setSignal(result);
@@ -69,7 +72,8 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
           confidenceScore: result.confidenceScore,
           reasoning: result.reasoning,
           isVerified: false,
-          predictionResult: 'pending'
+          predictionResult: 'pending',
+          assetSymbol: symbol
         });
       }
 
@@ -87,8 +91,8 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
       console.error("Signal Generation Error:", error);
       toast({
         variant: "destructive",
-        title: "AI Pipeline Offline",
-        description: "Failed to process market intelligence. Check your connectivity.",
+        title: "Intelligence Pipeline Error",
+        description: error.message || "Failed to process market data. Please try again.",
       });
     } finally {
       setLoading(false);
@@ -179,7 +183,7 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
                   Analysis Breakdown
                 </h4>
                 <div className="space-y-3">
-                  {explanation.steps.map((step, idx) => (
+                  {explanation.steps.map((step: string, idx: number) => (
                     <div key={idx} className="flex gap-3 group">
                       <div className="flex flex-col items-center gap-1">
                         <div className="w-5 h-5 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[10px] font-headline text-muted-foreground group-hover:border-primary/50 transition-colors">
@@ -193,14 +197,6 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
                     </div>
                   ))}
                 </div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 mt-4 flex items-center justify-between">
-                <div>
-                  <h4 className="text-[10px] font-headline text-muted-foreground uppercase mb-1">Entry Tracking</h4>
-                  <p className="text-xs font-headline font-bold text-white">AUTOLOGGED TO FIRESTORE</p>
-                </div>
-                <History className="w-5 h-5 text-primary opacity-50" />
               </div>
             </div>
           </div>

@@ -41,6 +41,7 @@ const prompt = ai.definePrompt({
   name: 'generateTradingSignalPrompt',
   input: { schema: z.any() },
   output: { schema: GenerateTradingSignalOutputSchema },
+  model: 'googleai/gemini-1.5-flash',
   prompt: `You are an expert financial analyst. Analyze the following market data for {{{symbol}}} and provide a trading signal.
 
 Current Price: {{{currentPrice}}}
@@ -70,7 +71,9 @@ const generateTradingSignalFlow = ai.defineFlow(
       interval: input.interval,
       technicalDataJSON
     });
-    return output!;
+    
+    if (!output) throw new Error('Failed to generate AI output');
+    return output;
   }
 );
 
