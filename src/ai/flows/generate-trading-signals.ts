@@ -48,7 +48,7 @@ const GenerateTradingSignalOutputSchema = z.object({
 export type GenerateTradingSignalOutput = z.infer<typeof GenerateTradingSignalOutputSchema>;
 
 
-/* ---------------- PROMPT INPUT SCHEMA (IMPORTANT) ---------------- */
+/* ---------------- PROMPT INPUT SCHEMA ---------------- */
 
 const PromptInputSchema = z.object({
   symbol: z.string(),
