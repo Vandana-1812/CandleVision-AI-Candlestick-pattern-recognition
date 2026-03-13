@@ -1,10 +1,6 @@
 'use server';
 /**
  * @fileOverview A Genkit flow for personalizing learning paths based on user progress, weaknesses, and learning style.
- *
- * - personalizeLearningPaths - A function that handles the learning path personalization process.
- * - PersonalizeLearningPathsInput - The input type for the personalizeLearningPaths function.
- * - PersonalizeLearningPathsOutput - The return type for the personalizeLearningPaths function.
  */
 
 import {ai} from '@/ai/genkit';
@@ -48,21 +44,12 @@ export type PersonalizeLearningPathsOutput = z.infer<
   typeof PersonalizeLearningPathsOutputSchema
 >;
 
-export async function personalizeLearningPaths(
-  input: PersonalizeLearningPathsInput
-): Promise<PersonalizeLearningPathsOutput> {
-  return personalizeLearningPathsFlow(input);
-}
-
 const personalizeLearningPathsPrompt = ai.definePrompt({
   name: 'personalizeLearningPathsPrompt',
+  model: 'googleai/gemini-1.5-flash',
   input: {schema: PersonalizeLearningPathsInputSchema},
   output: {schema: PersonalizeLearningPathsOutputSchema},
-  prompt: `You are an AI-powered tutor for the CandleVision trading education platform. Your goal is to create a personalized learning path for a user based on their progress, identified weaknesses, and preferred learning style, helping them efficiently improve their trading knowledge and skills.
-
-The CandleVision platform offers interactive modules on complex trading concepts, candlestick patterns, and indicators.
-
-Here is the user's current information:
+  prompt: `You are an AI-powered tutor for the CandleVision trading education platform. Your goal is to create a personalized learning path for a user based on their progress, identified weaknesses, and preferred learning style.
 
 User Progress: {{{userProgress}}}
 Identified Weaknesses:
@@ -70,9 +57,7 @@ Identified Weaknesses:
 {{/each}}
 Learning Style: {{{learningStyle}}}
 
-Based on this information, generate a personalized learning path tailored to the user's needs. The learning path should consist of a sequence of modules or topics. Also, provide a clear rationale for your recommendations, explaining how it addresses their weaknesses and aligns with their learning style.
-
-The output should be a JSON object with two fields: 'learningPath' (an array of objects with 'module' and 'description' fields) and 'rationale' (a string).`,
+Return a sequence of modules and a rationale.`,
 });
 
 const personalizeLearningPathsFlow = ai.defineFlow(
@@ -86,3 +71,9 @@ const personalizeLearningPathsFlow = ai.defineFlow(
     return output!;
   }
 );
+
+export async function personalizeLearningPaths(
+  input: PersonalizeLearningPathsInput
+): Promise<PersonalizeLearningPathsOutput> {
+  return personalizeLearningPathsFlow(input);
+}
