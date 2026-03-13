@@ -1,10 +1,6 @@
 'use server';
 /**
  * @fileOverview A Genkit flow for generating student-friendly, step-wise explanations of AI-generated trading signals.
- *
- * - explainTradingSignals - A function that generates a structured explanation for a trading signal.
- * - ExplainTradingSignalInput - The input type for the explainTradingSignals function.
- * - ExplainTradingSignalOutput - The return type for the explainTradingSignals function.
  */
 
 import {ai} from '@/ai/genkit';
@@ -30,6 +26,7 @@ export type ExplainTradingSignalOutput = z.infer<typeof ExplainTradingSignalOutp
 
 const explainTradingSignalPrompt = ai.definePrompt({
   name: 'explainTradingSignalPrompt',
+  model: 'googleai/gemini-1.5-flash',
   input: {schema: ExplainTradingSignalInputSchema},
   output: {schema: ExplainTradingSignalOutputSchema},
   prompt: `You are an expert financial analyst. Provide a concise, step-wise explanation for a '{{{signal}}}' signal on **{{{assetSymbol}}}**.
