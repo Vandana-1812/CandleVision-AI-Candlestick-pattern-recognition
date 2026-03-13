@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useState } from 'react';
@@ -11,12 +12,15 @@ import {
   CheckCircle2, 
   AlertTriangle, 
   Loader2, 
-  Cpu
+  Cpu,
+  History
 } from 'lucide-react';
 import { generateTradingSignals, GenerateTradingSignalOutput } from '@/ai/flows/generate-trading-signals';
 import { explainTradingSignals, ExplainTradingSignalOutput } from '@/ai/flows/explain-trading-signals';
 import { OHLC } from '@/lib/market-data';
 import { useToast } from '@/hooks/use-toast';
+import { useUser, useFirestore } from '@/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 interface AISignalPanelProps {
   marketData: OHLC[];
@@ -27,6 +31,8 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
   const [loading, setLoading] = useState(false);
   const [signal, setSignal] = useState<GenerateTradingSignalOutput | null>(null);
   const [explanation, setExplanation] = useState<ExplainTradingSignalOutput | null>(null);
+  const { user } = useUser();
+  const db = useFirestore();
   const { toast } = useToast();
 
   const getSignal = async () => {
@@ -37,12 +43,14 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
     setExplanation(null);
     
     try {
+      const currentPrice = marketData[marketData.length - 1].close;
+      
       // Step 1: Generate Raw Signal
       const result = await generateTradingSignals({
         symbol,
         interval: '1h',
         ohlcData: marketData.slice(-50),
-        currentPrice: marketData[marketData.length - 1].close,
+        currentPrice,
         technicalIndicators: {
           rsi: 62,
           bollingerBands: { upper: 105, middle: 100, lower: 95 }
@@ -50,7 +58,22 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
       });
       setSignal(result);
 
-      // Step 2: Generate Step-wise Explanation
+      // Step 2: Store Signal for Verification
+      if (user && db) {
+        const signalsRef = collection(db, 'users', user.uid, 'signals');
+        addDoc(signalsRef, {
+          symbol,
+          timestamp: serverTimestamp(),
+          signal: result.signal,
+          entryPrice: currentPrice,
+          confidenceScore: result.confidenceScore,
+          reasoning: result.reasoning,
+          isVerified: false,
+          predictionResult: 'pending'
+        });
+      }
+
+      // Step 3: Generate Step-wise Explanation
       const exp = await explainTradingSignals({
         assetSymbol: symbol,
         signal: result.signal,
@@ -65,9 +88,7 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
       toast({
         variant: "destructive",
         title: "AI Pipeline Offline",
-        description: error.message?.includes('503') 
-          ? "The AI service is currently at capacity. Please try again in a moment." 
-          : "Failed to process market intelligence. Check your connectivity.",
+        description: "Failed to process market intelligence. Check your connectivity.",
       });
     } finally {
       setLoading(false);
@@ -174,14 +195,12 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
                 </div>
               </div>
 
-              <div className="p-4 rounded-xl bg-destructive/5 border border-destructive/20 mt-4">
-                <h4 className="text-[10px] font-headline text-destructive mb-1 uppercase flex items-center gap-2">
-                  <AlertTriangle className="w-3 h-3" />
-                  Strategic Conclusion
-                </h4>
-                <p className="text-xs text-muted-foreground leading-relaxed italic">
-                  {explanation.conclusion}
-                </p>
+              <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 mt-4 flex items-center justify-between">
+                <div>
+                  <h4 className="text-[10px] font-headline text-muted-foreground uppercase mb-1">Entry Tracking</h4>
+                  <p className="text-xs font-headline font-bold text-white">AUTOLOGGED TO FIRESTORE</p>
+                </div>
+                <History className="w-5 h-5 text-primary opacity-50" />
               </div>
             </div>
           </div>
@@ -195,7 +214,7 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
             </div>
             <p className="font-headline text-xs tracking-widest text-muted-foreground">WAITING FOR OPERATIVE INPUT</p>
             <p className="text-[10px] mt-2 max-w-[200px] leading-relaxed">
-              Click generate to initialize neural analysis for {symbol} market data.
+              Click generate to initialize neural analysis and start verification tracking.
             </p>
           </div>
         )}

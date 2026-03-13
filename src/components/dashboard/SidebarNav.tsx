@@ -1,3 +1,4 @@
+
 "use client"
 
 import React from 'react';
@@ -11,7 +12,9 @@ import {
   History, 
   Settings,
   Zap,
-  LogOut
+  LogOut,
+  LineChart,
+  PlayCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/firebase';
@@ -20,7 +23,8 @@ import { useRouter } from 'next/navigation';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
-  { icon: BarChart3, label: 'Analytics', href: '/analytics' },
+  { icon: LineChart, label: 'AI Performance', href: '/performance' },
+  { icon: PlayCircle, label: 'Market Replay', href: '/replay' },
   { icon: GraduationCap, label: 'Learning Hub', href: '/learning' },
   { icon: Trophy, label: 'Competitions', href: '/competitions' },
   { icon: History, label: 'Trade History', href: '/history' },

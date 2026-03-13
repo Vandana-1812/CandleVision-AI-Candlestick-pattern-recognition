@@ -10,9 +10,44 @@
         "email": { "type": "string", "format": "email" },
         "displayName": { "type": "string" },
         "virtualBalance": { "type": "number" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "tradesCount": { "type": "number" },
+        "winRate": { "type": "number" }
       },
       "required": ["uid", "email"]
+    },
+    "Signal": {
+      "title": "Trading Signal",
+      "description": "A record of an AI-generated trading recommendation.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "symbol": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "signal": { "type": "string", "enum": ["Buy", "Sell", "Hold"] },
+        "entryPrice": { "type": "number" },
+        "confidenceScore": { "type": "number" },
+        "reasoning": { "type": "string" },
+        "isVerified": { "type": "boolean" },
+        "exitPrice": { "type": "number" },
+        "profitLoss": { "type": "number" },
+        "predictionResult": { "type": "string", "enum": ["correct", "incorrect", "neutral"] }
+      },
+      "required": ["symbol", "timestamp", "signal", "entryPrice"]
+    },
+    "BacktestResult": {
+      "title": "Backtest Result",
+      "description": "Aggregated metrics from a historical data simulation.",
+      "type": "object",
+      "properties": {
+        "strategyName": { "type": "string" },
+        "totalTrades": { "type": "number" },
+        "winRate": { "type": "number" },
+        "accuracy": { "type": "number" },
+        "profit": { "type": "number" },
+        "maxDrawdown": { "type": "number" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "auth": {
@@ -22,6 +57,14 @@
     "/users/{userId}": {
       "schema": { "$ref": "#/backend/entities/UserProfile" },
       "description": "User profile document."
+    },
+    "/users/{userId}/signals/{signalId}": {
+      "schema": { "$ref": "#/backend/entities/Signal" },
+      "description": "Individual AI signals for tracking and verification."
+    },
+    "/users/{userId}/backtests/{backtestId}": {
+      "schema": { "$ref": "#/backend/entities/BacktestResult" },
+      "description": "Stored results of historical simulations."
     }
   }
 }
