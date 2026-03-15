@@ -62,9 +62,12 @@ const PromptInputSchema = z.object({
 
 const prompt = ai.definePrompt({
   name: 'generateTradingSignalPrompt',
-  model: 'googleai/gemini-1.5-flash',
+  model: 'googleai/gemini-1.5-flash-latest',
   input: { schema: PromptInputSchema },
   output: { schema: GenerateTradingSignalOutputSchema },
+  config: {
+    responseMimeType: 'application/json',
+  },
 
   prompt: `
 You are an expert financial analyst.
@@ -84,11 +87,10 @@ BUY → bullish indicators and upward momentum
 SELL → bearish indicators and downward momentum  
 HOLD → mixed signals or unclear trend  
 
-Return:
-
-1. Trading signal (Buy / Sell / Hold)
-2. Confidence score (0–100)
-3. Short reasoning explaining the decision.
+Return a JSON object with exactly these fields:
+- signal: one of "Buy", "Sell", or "Hold"
+- confidenceScore: a number between 0 and 100
+- reasoning: a short string explaining the decision
 `,
 });
 
@@ -114,7 +116,7 @@ const generateTradingSignalFlow = ai.defineFlow(
         symbol: input.symbol,
         interval: input.interval,
         currentPrice: input.currentPrice,
-        technicalDataJSON
+        technicalDataJSON,
       });
 
       if (!output) {
@@ -127,13 +129,17 @@ const generateTradingSignalFlow = ai.defineFlow(
 
       console.error("Trading signal AI failed:", error);
 
-      // fallback response so app doesn't crash
-      return {
-        signal: "Hold",
-        confidenceScore: 0,
-        reasoning: "AI analysis unavailable. Defaulting to Hold."
-      };
+      // Only return fallback for transient / empty-response errors.
+      // Re-throw config, auth, or quota errors so they surface properly.
+      if (error instanceof Error && error.message === 'AI returned empty response') {
+        return {
+          signal: "Hold" as const,
+          confidenceScore: 0,
+          reasoning: "AI analysis unavailable. Defaulting to Hold.",
+        };
+      }
 
+      throw error;
     }
   }
 );

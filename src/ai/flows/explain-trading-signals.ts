@@ -26,9 +26,12 @@ export type ExplainTradingSignalOutput = z.infer<typeof ExplainTradingSignalOutp
 
 const explainTradingSignalPrompt = ai.definePrompt({
   name: 'explainTradingSignalPrompt',
-  model: 'googleai/gemini-1.5-flash',
+  model: 'googleai/gemini-1.5-flash-latest',
   input: {schema: ExplainTradingSignalInputSchema},
   output: {schema: ExplainTradingSignalOutputSchema},
+  config: {
+    responseMimeType: 'application/json',
+  },
   prompt: `You are an expert financial analyst. Provide a concise, step-wise explanation for a '{{{signal}}}' signal on **{{{assetSymbol}}}**.
 
 Confidence: {{confidenceScore}}%

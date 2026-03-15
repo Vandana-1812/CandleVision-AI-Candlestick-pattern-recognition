@@ -46,9 +46,12 @@ export type PersonalizeLearningPathsOutput = z.infer<
 
 const personalizeLearningPathsPrompt = ai.definePrompt({
   name: 'personalizeLearningPathsPrompt',
-  model: 'googleai/gemini-1.5-flash',
+  model: 'googleai/gemini-1.5-flash-latest',
   input: {schema: PersonalizeLearningPathsInputSchema},
   output: {schema: PersonalizeLearningPathsOutputSchema},
+  config: {
+    responseMimeType: 'application/json',
+  },
   prompt: `You are an AI-powered tutor for the CandleVision trading education platform. Your goal is to create a personalized learning path for a user based on their progress, identified weaknesses, and preferred learning style.
 
 User Progress: {{{userProgress}}}
