@@ -51,12 +51,23 @@ export default function PerformancePage() {
 
     const wins = verified.filter((s: any) => s.predictionResult === 'correct').length;
     const profit = verified.reduce((acc: number, s: any) => acc + (s.profitLoss || 0), 0);
-    
+
+    // Calculate real max drawdown from equity curve
+    let balance = 10000;
+    let peak = balance;
+    let maxDrawdown = 0;
+    for (const s of [...verified].reverse()) {
+      balance += s.profitLoss || 0;
+      if (balance > peak) peak = balance;
+      const drawdownPct = peak > 0 ? ((peak - balance) / peak) * 100 : 0;
+      if (drawdownPct > maxDrawdown) maxDrawdown = drawdownPct;
+    }
+
     return {
       winRate: Math.round((wins / verified.length) * 100),
       totalProfit: profit.toFixed(2),
       accuracy: Math.round((wins / verified.length) * 100),
-      drawdown: 4.2 // mocked
+      drawdown: parseFloat(maxDrawdown.toFixed(2)),
     };
   }, [signals]);
 

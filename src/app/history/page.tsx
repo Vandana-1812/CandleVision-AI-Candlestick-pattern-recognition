@@ -1,19 +1,24 @@
 "use client"
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { SidebarNav } from '@/components/dashboard/SidebarNav';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { History, ArrowUpRight, ArrowDownRight } from 'lucide-react';
-
-const trades = [
-  { id: 1, symbol: 'BTCUSDT', type: 'Buy', price: '$42,500', pnl: '+$450.20', status: 'Profit' },
-  { id: 2, symbol: 'ETHUSDT', type: 'Sell', price: '$2,300', pnl: '-$120.50', status: 'Loss' },
-  { id: 3, symbol: 'SOLUSDT', type: 'Buy', price: '$95.00', pnl: '+$2,100.00', status: 'Profit' },
-  { id: 4, symbol: 'BNBUSDT', type: 'Buy', price: '$310.00', pnl: '+$45.00', status: 'Profit' },
-];
+import { History, ArrowUpRight, ArrowDownRight, Loader2 } from 'lucide-react';
+import { useUser, useFirestore, useCollection } from '@/firebase';
+import { collection, query, orderBy, limit } from 'firebase/firestore';
 
 export default function HistoryPage() {
+  const { user } = useUser();
+  const db = useFirestore();
+
+  const signalsQuery = useMemo(() => {
+    if (!db || !user) return null;
+    return query(collection(db, 'users', user.uid, 'signals'), orderBy('timestamp', 'desc'), limit(50));
+  }, [db, user]);
+
+  const { data: signals, loading } = useCollection(signalsQuery);
+
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <SidebarNav />
@@ -31,52 +36,78 @@ export default function HistoryPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent border-white/10">
-                  <TableHead className="font-headline text-xs uppercase text-muted-foreground">Asset</TableHead>
-                  <TableHead className="font-headline text-xs uppercase text-muted-foreground">Type</TableHead>
-                  <TableHead className="font-headline text-xs uppercase text-muted-foreground">Execution Price</TableHead>
-                  <TableHead className="font-headline text-xs uppercase text-muted-foreground">Profit/Loss</TableHead>
-                  <TableHead className="font-headline text-xs uppercase text-muted-foreground text-right">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {trades.map((trade) => (
-                  <TableRow key={trade.id} className="border-white/5 hover:bg-white/5">
-                    <TableCell className="font-bold">{trade.symbol}</TableCell>
-                    <TableCell>
-                      <span className={trade.type === 'Buy' ? 'text-accent' : 'text-destructive'}>
-                        {trade.type}
-                      </span>
-                    </TableCell>
-                    <TableCell className="font-body text-sm">{trade.price}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 font-headline">
-                        {trade.status === 'Profit' ? (
-                          <>
-                            <ArrowUpRight className="w-4 h-4 text-accent" />
-                            <span className="text-accent">{trade.pnl}</span>
-                          </>
-                        ) : (
-                          <>
-                            <ArrowDownRight className="w-4 h-4 text-destructive" />
-                            <span className="text-destructive">{trade.pnl}</span>
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                       <span className={`px-2 py-1 rounded-full text-[10px] font-headline uppercase ${
-                         trade.status === 'Profit' ? 'bg-accent/10 text-accent' : 'bg-destructive/10 text-destructive'
-                       }`}>
-                         {trade.status}
-                       </span>
-                    </TableCell>
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : !signals || signals.length === 0 ? (
+              <div className="flex items-center justify-center py-12 text-muted-foreground text-sm font-body italic">
+                No operations logged yet. Generate signals to populate this log.
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent border-white/10">
+                    <TableHead className="font-headline text-xs uppercase text-muted-foreground">Asset</TableHead>
+                    <TableHead className="font-headline text-xs uppercase text-muted-foreground">Type</TableHead>
+                    <TableHead className="font-headline text-xs uppercase text-muted-foreground">Execution Price</TableHead>
+                    <TableHead className="font-headline text-xs uppercase text-muted-foreground">Profit/Loss</TableHead>
+                    <TableHead className="font-headline text-xs uppercase text-muted-foreground text-right">Status</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {signals.map((trade: any) => {
+                    const isPending = !trade.isVerified;
+                    const isProfit = trade.predictionResult === 'correct';
+                    const pnl = trade.profitLoss;
+                    const status = isPending ? 'Pending' : isProfit ? 'Profit' : 'Loss';
+                    return (
+                      <TableRow key={trade.id} className="border-white/5 hover:bg-white/5">
+                        <TableCell className="font-bold">{trade.symbol}</TableCell>
+                        <TableCell>
+                          <span className={trade.signal === 'Buy' ? 'text-accent' : trade.signal === 'Sell' ? 'text-destructive' : 'text-muted-foreground'}>
+                            {trade.signal}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-body text-sm">
+                          {trade.entryPrice != null ? `$${Number(trade.entryPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                        </TableCell>
+                        <TableCell>
+                          {isPending ? (
+                            <span className="text-muted-foreground text-xs font-headline">Pending</span>
+                          ) : (
+                            <div className="flex items-center gap-1 font-headline">
+                              {isProfit ? (
+                                <>
+                                  <ArrowUpRight className="w-4 h-4 text-accent" />
+                                  <span className="text-accent">+${Math.abs(pnl).toFixed(2)}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <ArrowDownRight className="w-4 h-4 text-destructive" />
+                                  <span className="text-destructive">-${Math.abs(pnl).toFixed(2)}</span>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className={`px-2 py-1 rounded-full text-[10px] font-headline uppercase ${
+                            isPending
+                              ? 'bg-muted/20 text-muted-foreground'
+                              : isProfit
+                              ? 'bg-accent/10 text-accent'
+                              : 'bg-destructive/10 text-destructive'
+                          }`}>
+                            {status}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </main>

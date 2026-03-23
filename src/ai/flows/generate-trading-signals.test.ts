@@ -1,4 +1,3 @@
-'''
 import { generateTradingSignals, GenerateTradingSignalInput } from './generate-trading-signals';
 
 describe('generateTradingSignals', () => {
@@ -98,4 +97,3 @@ describe('generateTradingSignals', () => {
     expect(result.reasoning).toBeDefined();
   });
 });
-'''
