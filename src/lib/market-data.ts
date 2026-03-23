@@ -109,3 +109,73 @@ export function calculateRSI(data: OHLC[], period: number = 14): number[] {
   }
   return rsi;
 }
+
+export interface MACDResult {
+  macd: number;
+  signal: number;
+  histogram: number;
+}
+
+function calculateEMA(values: number[], period: number): number[] {
+  const ema: number[] = new Array(values.length).fill(0);
+  if (values.length < period) return ema;
+  const k = 2 / (period + 1);
+  // Seed with the simple moving average of the first `period` values
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += values[i];
+  const seed = sum / period;
+  // Back-fill early indices with the seed so they carry a reasonable value
+  for (let i = 0; i < period; i++) ema[i] = seed;
+  for (let i = period; i < values.length; i++) {
+    ema[i] = values[i] * k + ema[i - 1] * (1 - k);
+  }
+  return ema;
+}
+
+export function calculateMACD(
+  data: OHLC[],
+  fastPeriod: number = 12,
+  slowPeriod: number = 26,
+  signalPeriod: number = 9
+): MACDResult[] {
+  const closes = data.map((d) => d.close);
+  const fastEMA = calculateEMA(closes, fastPeriod);
+  const slowEMA = calculateEMA(closes, slowPeriod);
+
+  const macdLine = closes.map((_, i) => fastEMA[i] - slowEMA[i]);
+  const signalLine = calculateEMA(macdLine, signalPeriod);
+
+  return macdLine.map((macd, i) => ({
+    macd,
+    signal: signalLine[i],
+    histogram: macd - signalLine[i],
+  }));
+}
+
+export interface BollingerBandsResult {
+  upper: number;
+  middle: number;
+  lower: number;
+}
+
+export function calculateBollingerBands(
+  data: OHLC[],
+  period: number = 20,
+  stdDevMultiplier: number = 2
+): BollingerBandsResult[] {
+  return data.map((_, i) => {
+    if (i < period - 1) {
+      const mid = data[i].close;
+      return { upper: mid, middle: mid, lower: mid };
+    }
+    const slice = data.slice(i - period + 1, i + 1).map((d) => d.close);
+    const mean = slice.reduce((a, b) => a + b, 0) / period;
+    const variance = slice.reduce((acc, val) => acc + (val - mean) ** 2, 0) / period;
+    const std = Math.sqrt(variance);
+    return {
+      upper: mean + stdDevMultiplier * std,
+      middle: mean,
+      lower: mean - stdDevMultiplier * std,
+    };
+  });
+}

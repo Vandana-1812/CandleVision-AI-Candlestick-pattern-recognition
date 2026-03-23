@@ -23,6 +23,13 @@ const GenerateTradingSignalInputSchema = z.object({
   ).min(1),
   technicalIndicators: z.object({
     rsi: z.number().optional(),
+    macd: z
+      .object({
+        line: z.number().optional(),
+        signal: z.number().optional(),
+        histogram: z.number().optional(),
+      })
+      .optional(),
     bollingerBands: z
       .object({
         upper: z.number().optional(),

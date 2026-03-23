@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { generateTradingSignals } from '@/ai/flows/generate-trading-signals';
 import { explainTradingSignals } from '@/ai/flows/explain-trading-signals';
-import { OHLC } from '@/lib/market-data';
+import { OHLC, calculateRSI, calculateMACD, calculateBollingerBands } from '@/lib/market-data';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -47,7 +47,22 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
     
     try {
       const currentPrice = marketData[marketData.length - 1].close;
-      
+
+      // Calculate real technical indicators from market data
+      const rsiValues = calculateRSI(marketData);
+      const macdValues = calculateMACD(marketData);
+      const bbValues = calculateBollingerBands(marketData);
+      const lastIdx = marketData.length - 1;
+      const currentRSI = rsiValues[lastIdx];
+      const currentMACD = macdValues[lastIdx];
+      const currentBB = bbValues[lastIdx];
+      const priceMomentum =
+        currentMACD.macd > currentMACD.signal
+          ? 'Bullish'
+          : currentMACD.macd < currentMACD.signal
+          ? 'Bearish'
+          : 'Neutral';
+
       // Step 1: Generate Raw Signal
       const result = await generateTradingSignals({
         symbol,
@@ -55,9 +70,18 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
         ohlcData: marketData.slice(-50),
         currentPrice,
         technicalIndicators: {
-          rsi: 62,
-          bollingerBands: { upper: currentPrice * 1.05, middle: currentPrice, lower: currentPrice * 0.95 }
-        }
+          rsi: currentRSI,
+          macd: {
+            line: currentMACD.macd,
+            signal: currentMACD.signal,
+            histogram: currentMACD.histogram,
+          },
+          bollingerBands: {
+            upper: currentBB.upper,
+            middle: currentBB.middle,
+            lower: currentBB.lower,
+          },
+        },
       });
       setSignal(result);
 
@@ -83,8 +107,12 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
         signal: result.signal,
         confidenceScore: result.confidenceScore,
         detectedPatterns: ['Local Support Test', 'Volume Spike'],
-        technicalIndicators: [{ name: 'RSI', value: 62 }],
-        priceMomentum: 'Stabilizing'
+        technicalIndicators: [
+          { name: 'RSI', value: currentRSI.toFixed(2) },
+          { name: 'MACD Histogram', value: currentMACD.histogram.toFixed(4) },
+          { name: 'Bollinger Band Width', value: (currentBB.upper - currentBB.lower).toFixed(4) },
+        ],
+        priceMomentum,
       });
       setExplanation(exp);
     } catch (error: any) {
