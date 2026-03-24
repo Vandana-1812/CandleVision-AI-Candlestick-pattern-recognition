@@ -26,7 +26,7 @@ export type ExplainTradingSignalOutput = z.infer<typeof ExplainTradingSignalOutp
 
 const explainTradingSignalPrompt = ai.definePrompt({
   name: 'explainTradingSignalPrompt',
-  model: 'googleai/gemini-1.5-flash-latest',
+  model: 'googleai/gemini-2.5-flash',
   input: {schema: ExplainTradingSignalInputSchema},
   output: {schema: ExplainTradingSignalOutputSchema},
   config: {
