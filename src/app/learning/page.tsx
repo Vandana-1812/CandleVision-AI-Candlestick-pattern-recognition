@@ -1,173 +1,387 @@
-"use client"
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { SidebarNav } from '@/components/dashboard/SidebarNav';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MarketChart3D } from '@/components/trading/MarketChart3D';
-import { fetchRealOHLC, OHLC } from '@/lib/market-data';
-import { Slider } from '@/components/ui/slider';
-import { Play, Pause, RotateCcw, FastForward, Rewind } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import React, { useState } from "react";
+import { SidebarNav } from "@/components/dashboard/SidebarNav";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  PlayCircle,
+  BookOpen,
+  Award,
+  BrainCircuit,
+  ShieldCheck,
+  Target,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
 
-export default function MarketReplayPage() {
-  const [fullData, setFullData] = useState<OHLC[]>([]);
-  const [displayData, setDisplayData] = useState<OHLC[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(20);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1000);
+/* MODULES */
+const modules = [
+  { title: "Intro to Candlesticks", icon: BookOpen },
+  { title: "Advanced Patterns", icon: Target },
+  { title: "Psychology of Trading", icon: BrainCircuit },
+  { title: "Risk Management", icon: ShieldCheck },
+];
 
-  useEffect(() => {
-    fetchRealOHLC('BTC', '1h', 100).then(setFullData);
-  }, []);
+/* CONTENT */
+const moduleContent = {
+  "Intro to Candlesticks": {
+    image: "/candlestick.webp",
+    description:
+      "Candlesticks represent price movement and help understand market direction.",
+    sections: [
+      {
+        title: "Basics",
+        content: [
+          "Open, High, Low, Close define a candle.",
+          "Body shows price difference.",
+          "Wicks show extremes.",
+        ],
+      },
+      {
+        title: "Single Candle Patterns",
+        content: [
+          "Doji → indecision in market",
+          "Hammer → potential reversal after downtrend",
+          "Shooting Star → potential reversal after uptrend",
+          "Marubozu → strong momentum with no wicks",
+        ],
+      },
+      {
+        title: "Bullish Patterns",
+        content: [
+          "Bullish Engulfing → strong buying pressure",
+          "Morning Star → three-candle reversal pattern",
+          "Piercing Line → bullish reversal after downtrend",
+        ],
+      },
+      {
+        title: "Bearish Patterns",
+        content: [
+          "Bearish Engulfing → strong selling pressure",
+          "Evening Star → three-candle reversal pattern",
+          "Dark Cloud Cover → bearish reversal after uptrend",
+        ],
+      },
+      {
+        title: "Timeframes",
+        content: [
+          "Higher timeframes (Daily, Weekly) → major trend direction",
+          "Lower timeframes (1min, 5min) → entry timing",
+          "Multi-timeframe analysis → alignment for higher probability",
+        ],
+      },
+      {
+        title: "Practical Tips",
+        content: [
+          "Wait for candle close before confirming patterns",
+          "Combine candlestick patterns with support/resistance levels",
+          "Use volume to confirm pattern strength",
+          "Practice identifying patterns on historical charts",
+        ],
+      },
+    ],
+  },
 
-  useEffect(() => {
-    setDisplayData(fullData.slice(0, currentIndex));
-  }, [currentIndex, fullData]);
+  "Advanced Patterns": {
+    image: "/patterns.webp",
+    description: "Patterns help predict future price movement.",
+    sections: [
+      {
+        title: "Reversal Patterns",
+        content: [
+          "Head & Shoulders → major trend reversal",
+          "Inverse Head & Shoulders → bullish reversal",
+          "Double Top → bearish reversal",
+          "Double Bottom → bullish reversal",
+          "Triple Top/Bottom → stronger reversal signals",
+        ],
+      },
+      {
+        title: "Continuation Patterns",
+        content: [
+          "Bull Flag → pause before upward continuation",
+          "Bear Flag → pause before downward continuation",
+          "Pennants → symmetrical consolidation before breakout",
+          "Cup & Handle → bullish continuation pattern",
+          "Ascending/Descending Triangles → breakout direction bias",
+        ],
+      },
+      {
+        title: "Pattern Confirmation",
+        content: [
+          "Volume should increase on breakout",
+          "Price should close beyond pattern boundary",
+          "Look for retest of broken levels",
+          "Higher timeframe alignment increases reliability",
+        ],
+      },
+      {
+        title: "Common Mistakes",
+        content: [
+          "Entering before pattern completes",
+          "Ignoring overall market context",
+          "Not using stop-losses",
+          "Pattern hunting without confirmation",
+        ],
+      },
+      {
+        title: "Advanced Concepts",
+        content: [
+          "Harmonic patterns → Gartley, Bat, Butterfly",
+          "Elliott Wave Theory → pattern sequences",
+          "Wyckoff accumulation/distribution patterns",
+        ],
+      },
+    ],
+  },
 
-  useEffect(() => {
-    let interval: any;
-    if (isPlaying && currentIndex < fullData.length) {
-      interval = setInterval(() => {
-        setCurrentIndex(prev => prev + 1);
-      }, speed);
-    } else {
-      setIsPlaying(false);
-    }
-    return () => clearInterval(interval);
-  }, [isPlaying, currentIndex, fullData.length, speed]);
+  "Psychology of Trading": {
+    image: "/psychology.png",
+    description: "Emotions affect trading decisions.",
+    sections: [
+      {
+        title: "Common Emotions",
+        content: [
+          "Fear → early exit, missing opportunities",
+          "Greed → overtrading, increasing position size",
+          "FOMO → chasing trades, bad entries",
+          "Hope → holding losing positions too long",
+          "Revenge → trading emotionally after losses",
+        ],
+      },
+      {
+        title: "Mental Traps",
+        content: [
+          "Revenge Trading → chasing losses after a bad trade",
+          "Hesitation → missing entries due to doubt",
+          "Overconfidence → increasing size after wins",
+          "Confirmation Bias → only seeing evidence that supports your trade",
+          "Anchoring → fixating on entry price",
+          "Endowment Effect → overvaluing current positions",
+        ],
+      },
+      {
+        title: "Developing Discipline",
+        content: [
+          "Follow your trading plan without deviation",
+          "Accept losses as part of the process",
+          "Take breaks after emotional trades",
+          "Meditation and mindfulness techniques",
+          "Set daily loss limits",
+          "Review trades objectively",
+        ],
+      },
+      {
+        title: "Trading Routine",
+        content: [
+          "Pre-market preparation → analyze key levels",
+          "Set alerts for trade setups",
+          "Take breaks between trades",
+          "Post-market review → journaling",
+          "Weekend analysis → review performance",
+        ],
+      },
+      {
+        title: "Building Confidence",
+        content: [
+          "Start with small position sizes",
+          "Backtest strategies to build trust",
+          "Celebrate process adherence, not just wins",
+          "Learn from losses instead of dwelling on them",
+        ],
+      },
+    ],
+  },
+
+  "Risk Management": {
+    image: "/risk.png",
+    description: "Protect your capital.",
+    sections: [
+      {
+        title: "Core Rules",
+        content: [
+          "Always use a stop-loss",
+          "Risk 1-2% maximum per trade",
+          "Avoid overtrading",
+          "Never risk more than you can afford to lose",
+          "Protect profits with trailing stops",
+        ],
+      },
+      {
+        title: "Position Sizing",
+        content: [
+          "Calculate position size based on stop-loss distance",
+          "Formula: Risk Amount / (Entry - Stop Loss) = Position Size",
+          "Never risk more than 1-2% of account per trade",
+          "Scale in and out of positions strategically",
+          "Reduce size during losing streaks",
+        ],
+      },
+      {
+        title: "Risk-to-Reward Ratio",
+        content: [
+          "Minimum 1:2 risk-to-reward ratio",
+          "1:3 or higher is ideal for consistent profitability",
+          "Let winners run, cut losers quickly",
+          "Avoid moving stop-loss further from entry",
+          "Take partial profits at key levels",
+        ],
+      },
+      {
+        title: "Drawdown Management",
+        content: [
+          "Daily loss limit → stop trading after max loss (e.g., 3% per day)",
+          "Weekly loss limit → reassess strategy",
+          "Monthly loss limit → take a break and review",
+          "Reduce size by 50% after 2 consecutive losses",
+        ],
+      },
+      {
+        title: "Advanced Risk Concepts",
+        content: [
+          "Correlation risk → avoid overexposure to correlated assets",
+          "Volatility-based position sizing → smaller size in high volatility",
+          "Portfolio diversification → don't put all capital in one strategy",
+          "Maximum exposure → never risk more than 10% of account across open trades",
+        ],
+      },
+      {
+        title: "Risk Management Tools",
+        content: [
+          "Trailing stops → lock in profits as price moves",
+          "Breakeven stops → eliminate risk after favorable move",
+          "Time-based exits → exit if trade doesn't work within expected time",
+          "Alert systems → avoid constantly watching charts",
+        ],
+      },
+    ],
+  },
+};
+
+/* MILESTONE */
+const milestoneContent = {
+  "Intro to Candlesticks": {
+    title: "Move to Patterns",
+    description: "Now learn how candles form patterns.",
+  },
+  "Advanced Patterns": {
+    title: "Test in Replay",
+    description: "Apply patterns in replay mode.",
+  },
+  "Psychology of Trading": {
+    title: "Control Emotions",
+    description: "Practice discipline in replay.",
+  },
+  "Risk Management": {
+    title: "Protect Capital",
+    description: "Test strategies safely.",
+  },
+};
+
+export default function LearningPage() {
+  const [selectedModule, setSelectedModule] = useState(null);
+  const router = useRouter();
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <SidebarNav />
 
       <main className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* HEADER */}
         <header>
-          <h1 className="text-3xl font-headline font-bold glow-blue">
-            MARKET REPLAY TERMINAL
-          </h1>
-          <p className="text-muted-foreground font-body">
-            Simulate historical market conditions to study patterns.
+          <h1 className="text-3xl font-bold">LEARNING HUB</h1>
+          <p className="text-muted-foreground">
+            Master the markets step by step.
           </p>
         </header>
 
-        <Card className="holographic-card border-primary/20 flex flex-col">
+        {/* MODULES */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {modules.map((m) => (
+            <div
+              key={m.title}
+              onClick={() => setSelectedModule(m.title)}
+              className="cursor-pointer"
+            >
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardHeader className="flex flex-row items-center gap-4">
+                  <m.icon className="w-6 h-6 text-primary" />
+                  <CardTitle>{m.title}</CardTitle>
+                </CardHeader>
 
-          {/* HEADER */}
-          <CardHeader className="flex flex-row items-center justify-between border-b border-white/5">
-            <div>
-              <CardTitle className="font-headline text-sm uppercase">
-                Replay Engine: BTC/USDT
-              </CardTitle>
-              <p className="text-[10px] text-muted-foreground uppercase mt-1">
-                Status: {isPlaying ? 'Streaming' : 'Paused'}
+                <CardContent>
+                  <p className="text-xs text-muted-foreground">
+                    Click to explore
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          ))}
+        </div>
+
+        {/* CONTENT */}
+        {selectedModule && moduleContent[selectedModule] && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{selectedModule}</CardTitle>
+            </CardHeader>
+
+            <CardContent className="space-y-4">
+              <img
+                src={moduleContent[selectedModule].image}
+                className="w-full max-h-64 object-contain bg-black rounded"
+                alt="module"
+              />
+
+              <p className="text-sm text-muted-foreground">
+                {moduleContent[selectedModule].description}
               </p>
-            </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+              {moduleContent[selectedModule].sections.map((section, i) => (
+                <div key={i}>
+                  <h3 className="font-semibold mt-4">{section.title}</h3>
+                  <ul className="text-xs mt-1 space-y-1">
+                    {section.content.map((point, j) => (
+                      <li key={j}>• {point}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
-              <Button variant="outline" size="icon" onClick={() => setCurrentIndex(20)}>
-                <RotateCcw className="w-4 h-4"/>
-              </Button>
-
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentIndex(prev => Math.max(20, prev - 1))}
-              >
-                <Rewind className="w-4 h-4"/>
-              </Button>
-
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentIndex(prev => Math.min(fullData.length, prev + 1))}
-              >
-                <FastForward className="w-4 h-4"/>
-              </Button>
-
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setIsPlaying(!isPlaying)}
-              >
-                {isPlaying ? <Pause className="w-4 h-4"/> : <Play className="w-4 h-4"/>}
-              </Button>
-
-              <div className="flex items-center gap-1 ml-2">
-                <Button variant="outline" size="sm" onClick={() => setSpeed(1000)}>1x</Button>
-                <Button variant="outline" size="sm" onClick={() => setSpeed(500)}>2x</Button>
-                <Button variant="outline" size="sm" onClick={() => setSpeed(200)}>5x</Button>
-              </div>
-
-            </div>
+        {/* MILESTONE */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Award className="w-4 h-4" />
+              Next Milestone
+            </CardTitle>
           </CardHeader>
 
-          {/* CONTENT */}
-          <CardContent className="p-4 space-y-4">
+          <CardContent>
+            {selectedModule ? (
+              <>
+                <p className="font-bold">
+                  {milestoneContent[selectedModule]?.title || "Complete Module"}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {milestoneContent[selectedModule]?.description || "Keep learning and practicing!"}
+                </p>
 
-            {/* CHART */}
-            <div className="w-full h-[400px] bg-black/40 rounded-xl overflow-hidden">
-              <MarketChart3D data={displayData} />
-            </div>
-
-            {/* SLIDER BELOW CHART (FIXED) */}
-            <div className="bg-black/60 backdrop-blur-md p-4 rounded-xl border border-white/10 space-y-3">
-              <div className="flex items-center justify-between text-[10px] font-headline text-muted-foreground">
-                <span>START: {fullData[0]?.timestamp.split('T')[0]}</span>
-                <span>STEP {currentIndex} / {fullData.length}</span>
-                <span>END: {fullData[fullData.length - 1]?.timestamp.split('T')[0]}</span>
-              </div>
-
-              <Slider
-                value={[currentIndex]}
-                max={fullData.length}
-                min={20}
-                step={1}
-                onValueChange={(val) => setCurrentIndex(val[0])}
-              />
-            </div>
-
-            {/* LOWER SECTION */}
-            <div className="flex gap-4">
-
-              {/* CURRENT DATA */}
-              <div className="flex-1 bg-black/60 backdrop-blur-md p-4 rounded-xl border border-white/10 text-xs space-y-1">
-                <p className="text-muted-foreground">CURRENT DATA</p>
-                <p>Price: {displayData.at(-1)?.close?.toFixed(2)}</p>
-                <p>High: {displayData.at(-1)?.high?.toFixed(2)}</p>
-                <p>Low: {displayData.at(-1)?.low?.toFixed(2)}</p>
-                <p>Volume: {displayData.at(-1)?.volume?.toFixed(2)}</p>
-              </div>
-
-              {/* MARKET INSIGHT */}
-              <div className="flex-1 bg-black/60 backdrop-blur-md p-4 rounded-xl border border-white/10 text-xs space-y-1">
-                <p className="text-muted-foreground">MARKET INSIGHT</p>
-
-                {displayData.length > 1 && (
-                  <>
-                    <p>
-                      Trend: {displayData.at(-1)!.close > displayData.at(-2)!.close
-                        ? "Uptrend 📈"
-                        : "Downtrend 📉"}
-                    </p>
-
-                    <p>
-                      Momentum: {Math.abs(displayData.at(-1)!.close - displayData.at(-2)!.close) > 50
-                        ? "Strong"
-                        : "Weak"}
-                    </p>
-
-                    <p>
-                      Observation: {displayData.at(-1)!.close > displayData.at(-2)!.close
-                        ? "Price is increasing"
-                        : "Price is decreasing"}
-                    </p>
-                  </>
-                )}
-              </div>
-
-            </div>
-
+                <button
+                  onClick={() => router.push("/replay")}
+                  className="mt-2 flex items-center gap-2 text-primary hover:text-primary/80 transition-colors"
+                >
+                  <PlayCircle className="w-4 h-4" />
+                  Go to Replay
+                </button>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Select a module to continue.
+              </p>
+            )}
           </CardContent>
         </Card>
       </main>
