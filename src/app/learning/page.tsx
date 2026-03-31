@@ -1,389 +1,312 @@
 "use client";
 
-import React, { useState } from "react";
-import { SidebarNav } from "@/components/dashboard/SidebarNav";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from 'next/link';
+import { SidebarNav } from '@/components/dashboard/SidebarNav';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { indicatorSprint, zerodhaTechnicalAnalysisTrack } from '@/lib/learning-tracks';
 import {
-  PlayCircle,
-  BookOpen,
   Award,
-  BrainCircuit,
-  ShieldCheck,
-  Target,
-} from "lucide-react";
-import { useRouter } from "next/navigation";
+  BookOpen,
+  ExternalLink,
+  GraduationCap,
+  LineChart,
+  ListChecks,
+  PlayCircle,
+  Timer,
+} from 'lucide-react';
 
-/* MODULES */
-const modules = [
-  { title: "Intro to Candlesticks", icon: BookOpen },
-  { title: "Advanced Patterns", icon: Target },
-  { title: "Psychology of Trading", icon: BrainCircuit },
-  { title: "Risk Management", icon: ShieldCheck },
+const coverage = [
+  { label: 'Foundations', value: 28 },
+  { label: 'Patterns', value: 36 },
+  { label: 'Indicators', value: 22 },
+  { label: 'Execution', value: 14 },
 ];
 
-/* CONTENT */
-const moduleContent = {
-  "Intro to Candlesticks": {
-    image: "/candlestick.webp",
-    description:
-      "Candlesticks represent price movement and help understand market direction.",
-    sections: [
-      {
-        title: "Basics",
-        content: [
-          "Open, High, Low, Close define a candle.",
-          "Body shows price difference.",
-          "Wicks show extremes.",
-        ],
-      },
-      {
-        title: "Single Candle Patterns",
-        content: [
-          "Doji → indecision in market",
-          "Hammer → potential reversal after downtrend",
-          "Shooting Star → potential reversal after uptrend",
-          "Marubozu → strong momentum with no wicks",
-        ],
-      },
-      {
-        title: "Bullish Patterns",
-        content: [
-          "Bullish Engulfing → strong buying pressure",
-          "Morning Star → three-candle reversal pattern",
-          "Piercing Line → bullish reversal after downtrend",
-        ],
-      },
-      {
-        title: "Bearish Patterns",
-        content: [
-          "Bearish Engulfing → strong selling pressure",
-          "Evening Star → three-candle reversal pattern",
-          "Dark Cloud Cover → bearish reversal after uptrend",
-        ],
-      },
-      {
-        title: "Timeframes",
-        content: [
-          "Higher timeframes (Daily, Weekly) → major trend direction",
-          "Lower timeframes (1min, 5min) → entry timing",
-          "Multi-timeframe analysis → alignment for higher probability",
-        ],
-      },
-      {
-        title: "Practical Tips",
-        content: [
-          "Wait for candle close before confirming patterns",
-          "Combine candlestick patterns with support/resistance levels",
-          "Use volume to confirm pattern strength",
-          "Practice identifying patterns on historical charts",
-        ],
-      },
-    ],
+const studySteps = [
+  {
+    title: 'Watch the official lesson',
+    copy: 'Each lesson opens the original Zerodha Varsity chapter or video series source in a new tab.',
   },
+  {
+    title: 'Answer the checkpoint',
+    copy: 'Use the checkpoint prompt as your quick self-test before moving to the next lesson.',
+  },
+  {
+    title: 'Apply it immediately',
+    copy: 'Take the concept into Market Replay or Competitions so the lesson turns into pattern memory.',
+  },
+];
 
-  "Advanced Patterns": {
-    image: "/patterns.webp",
-    description: "Patterns help predict future price movement.",
-    sections: [
-      {
-        title: "Reversal Patterns",
-        content: [
-          "Head & Shoulders → major trend reversal",
-          "Inverse Head & Shoulders → bullish reversal",
-          "Double Top → bearish reversal",
-          "Double Bottom → bullish reversal",
-          "Triple Top/Bottom → stronger reversal signals",
-        ],
-      },
-      {
-        title: "Continuation Patterns",
-        content: [
-          "Bull Flag → pause before upward continuation",
-          "Bear Flag → pause before downward continuation",
-          "Pennants → symmetrical consolidation before breakout",
-          "Cup & Handle → bullish continuation pattern",
-          "Ascending/Descending Triangles → breakout direction bias",
-        ],
-      },
-      {
-        title: "Pattern Confirmation",
-        content: [
-          "Volume should increase on breakout",
-          "Price should close beyond pattern boundary",
-          "Look for retest of broken levels",
-          "Higher timeframe alignment increases reliability",
-        ],
-      },
-      {
-        title: "Common Mistakes",
-        content: [
-          "Entering before pattern completes",
-          "Ignoring overall market context",
-          "Not using stop-losses",
-          "Pattern hunting without confirmation",
-        ],
-      },
-      {
-        title: "Advanced Concepts",
-        content: [
-          "Harmonic patterns → Gartley, Bat, Butterfly",
-          "Elliott Wave Theory → pattern sequences",
-          "Wyckoff accumulation/distribution patterns",
-        ],
-      },
-    ],
-  },
-
-  "Psychology of Trading": {
-    image: "/psychology.png",
-    description: "Emotions affect trading decisions.",
-    sections: [
-      {
-        title: "Common Emotions",
-        content: [
-          "Fear → early exit, missing opportunities",
-          "Greed → overtrading, increasing position size",
-          "FOMO → chasing trades, bad entries",
-          "Hope → holding losing positions too long",
-          "Revenge → trading emotionally after losses",
-        ],
-      },
-      {
-        title: "Mental Traps",
-        content: [
-          "Revenge Trading → chasing losses after a bad trade",
-          "Hesitation → missing entries due to doubt",
-          "Overconfidence → increasing size after wins",
-          "Confirmation Bias → only seeing evidence that supports your trade",
-          "Anchoring → fixating on entry price",
-          "Endowment Effect → overvaluing current positions",
-        ],
-      },
-      {
-        title: "Developing Discipline",
-        content: [
-          "Follow your trading plan without deviation",
-          "Accept losses as part of the process",
-          "Take breaks after emotional trades",
-          "Meditation and mindfulness techniques",
-          "Set daily loss limits",
-          "Review trades objectively",
-        ],
-      },
-      {
-        title: "Trading Routine",
-        content: [
-          "Pre-market preparation → analyze key levels",
-          "Set alerts for trade setups",
-          "Take breaks between trades",
-          "Post-market review → journaling",
-          "Weekend analysis → review performance",
-        ],
-      },
-      {
-        title: "Building Confidence",
-        content: [
-          "Start with small position sizes",
-          "Backtest strategies to build trust",
-          "Celebrate process adherence, not just wins",
-          "Learn from losses instead of dwelling on them",
-        ],
-      },
-    ],
-  },
-
-  "Risk Management": {
-    image: "/risk.png",
-    description: "Protect your capital.",
-    sections: [
-      {
-        title: "Core Rules",
-        content: [
-          "Always use a stop-loss",
-          "Risk 1-2% maximum per trade",
-          "Avoid overtrading",
-          "Never risk more than you can afford to lose",
-          "Protect profits with trailing stops",
-        ],
-      },
-      {
-        title: "Position Sizing",
-        content: [
-          "Calculate position size based on stop-loss distance",
-          "Formula: Risk Amount / (Entry - Stop Loss) = Position Size",
-          "Never risk more than 1-2% of account per trade",
-          "Scale in and out of positions strategically",
-          "Reduce size during losing streaks",
-        ],
-      },
-      {
-        title: "Risk-to-Reward Ratio",
-        content: [
-          "Minimum 1:2 risk-to-reward ratio",
-          "1:3 or higher is ideal for consistent profitability",
-          "Let winners run, cut losers quickly",
-          "Avoid moving stop-loss further from entry",
-          "Take partial profits at key levels",
-        ],
-      },
-      {
-        title: "Drawdown Management",
-        content: [
-          "Daily loss limit → stop trading after max loss (e.g., 3% per day)",
-          "Weekly loss limit → reassess strategy",
-          "Monthly loss limit → take a break and review",
-          "Reduce size by 50% after 2 consecutive losses",
-        ],
-      },
-      {
-        title: "Advanced Risk Concepts",
-        content: [
-          "Correlation risk → avoid overexposure to correlated assets",
-          "Volatility-based position sizing → smaller size in high volatility",
-          "Portfolio diversification → don't put all capital in one strategy",
-          "Maximum exposure → never risk more than 10% of account across open trades",
-        ],
-      },
-      {
-        title: "Risk Management Tools",
-        content: [
-          "Trailing stops → lock in profits as price moves",
-          "Breakeven stops → eliminate risk after favorable move",
-          "Time-based exits → exit if trade doesn't work within expected time",
-          "Alert systems → avoid constantly watching charts",
-        ],
-      },
-    ],
-  },
-};
-
-/* MILESTONE */
-const milestoneContent = {
-  "Intro to Candlesticks": {
-    title: "Move to Patterns",
-    description: "Now learn how candles form patterns.",
-  },
-  "Advanced Patterns": {
-    title: "Test in Replay",
-    description: "Apply patterns in replay mode.",
-  },
-  "Psychology of Trading": {
-    title: "Control Emotions",
-    description: "Practice discipline in replay.",
-  },
-  "Risk Management": {
-    title: "Protect Capital",
-    description: "Test strategies safely.",
-  },
-};
+const sprintLessons = zerodhaTechnicalAnalysisTrack.lessons.filter((lesson) =>
+  indicatorSprint.lessonIds.includes(lesson.id)
+);
 
 export default function LearningPage() {
-  const [selectedModule, setSelectedModule] = useState(null);
-  const router = useRouter();
-
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-background">
       <SidebarNav />
+      <main className="flex-1 overflow-y-auto p-6">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+          <header className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge className="bg-primary/15 text-primary hover:bg-primary/15">Learning Hub</Badge>
+              <Badge variant="outline" className="border-primary/30 text-muted-foreground">
+                Zerodha-based track
+              </Badge>
+            </div>
+            <div className="space-y-2">
+              <h1 className="font-headline text-3xl font-bold tracking-tight text-white md:text-5xl">
+                TECHNICAL ANALYSIS TRACK
+              </h1>
+              <p className="max-w-3xl text-base text-muted-foreground md:text-lg">
+                Study the full Zerodha Varsity technical analysis video sequence in one guided path. We link to the
+                official lessons and layer on our own checkpoints, summaries, and practice flow.
+              </p>
+            </div>
+          </header>
 
-      <main className="flex-1 overflow-y-auto p-6 space-y-6">
-        {/* HEADER */}
-        <header>
-          <h1 className="text-3xl font-bold">LEARNING HUB</h1>
-          <p className="text-muted-foreground">
-            Master the markets step by step.
-          </p>
-        </header>
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_360px]">
+            <div className="space-y-6">
+              <Card className="border-primary/20 bg-card/70 backdrop-blur">
+                <CardHeader className="space-y-5 border-b border-primary/10 pb-6">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="rounded-xl bg-primary/15 p-3">
+                          <GraduationCap className="h-6 w-6 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-headline text-xs uppercase tracking-[0.32em] text-primary">
+                            Guided Curriculum
+                          </p>
+                          <CardTitle className="font-headline text-2xl text-white">
+                            {zerodhaTechnicalAnalysisTrack.provider} Module 2
+                          </CardTitle>
+                        </div>
+                      </div>
+                      <p className="max-w-2xl text-sm leading-7 text-muted-foreground">
+                        Full runtime is {zerodhaTechnicalAnalysisTrack.totalDuration}. It covers chart structure,
+                        candlestick logic, support and resistance, indicators, moving averages, and a usable trading
+                        checklist.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      <Button asChild>
+                        <Link href={zerodhaTechnicalAnalysisTrack.moduleUrl} target="_blank" rel="noreferrer">
+                          <PlayCircle className="h-4 w-4" />
+                          Open Official Videos
+                        </Link>
+                      </Button>
+                      <Button asChild variant="outline">
+                        <Link href={zerodhaTechnicalAnalysisTrack.playlistUrl} target="_blank" rel="noreferrer">
+                          <BookOpen className="h-4 w-4" />
+                          Open Full Module
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
 
-        {/* MODULES */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {modules.map((m) => (
-            <div
-              key={m.title}
-              onClick={() => setSelectedModule(m.title)}
-              className="cursor-pointer"
-            >
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardHeader className="flex flex-row items-center gap-4">
-                  <m.icon className="w-6 h-6 text-primary" />
-                  <CardTitle>{m.title}</CardTitle>
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="rounded-2xl border border-primary/15 bg-background/50 p-4">
+                      <p className="font-headline text-xs uppercase tracking-[0.28em] text-muted-foreground">
+                        Total Runtime
+                      </p>
+                      <p className="mt-3 font-headline text-3xl text-white">
+                        {zerodhaTechnicalAnalysisTrack.totalDuration}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-primary/15 bg-background/50 p-4">
+                      <p className="font-headline text-xs uppercase tracking-[0.28em] text-muted-foreground">
+                        Lessons
+                      </p>
+                      <p className="mt-3 font-headline text-3xl text-white">
+                        {zerodhaTechnicalAnalysisTrack.lessonsCount}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-primary/15 bg-background/50 p-4">
+                      <p className="font-headline text-xs uppercase tracking-[0.28em] text-muted-foreground">
+                        Indicators Sprint
+                      </p>
+                      <p className="mt-3 font-headline text-3xl text-white">{indicatorSprint.totalDuration}</p>
+                    </div>
+                    <div className="rounded-2xl border border-primary/15 bg-background/50 p-4">
+                      <p className="font-headline text-xs uppercase tracking-[0.28em] text-muted-foreground">
+                        Study Mode
+                      </p>
+                      <p className="mt-3 font-headline text-3xl text-white">Guided</p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 rounded-2xl border border-primary/15 bg-background/40 p-5 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <p className="font-headline text-xs uppercase tracking-[0.32em] text-muted-foreground">
+                        Coverage Map
+                      </p>
+                      <p className="text-sm leading-6 text-muted-foreground">
+                        Use the full sequence for a complete pass, or jump into the sprint if you want the
+                        indicator-heavy lessons first.
+                      </p>
+                    </div>
+                    <div className="grid gap-4">
+                      {coverage.map((item) => (
+                        <div key={item.label} className="space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="font-headline uppercase tracking-[0.18em] text-white">{item.label}</span>
+                            <span className="text-muted-foreground">{item.value}%</span>
+                          </div>
+                          <Progress value={item.value} className="h-2 bg-white/5" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </CardHeader>
+              </Card>
 
-                <CardContent>
-                  <p className="text-xs text-muted-foreground">
-                    Click to explore
+              <Card className="border-primary/20 bg-card/70 backdrop-blur">
+                <CardHeader className="border-b border-primary/10">
+                  <CardTitle className="flex items-center gap-3 font-headline text-2xl text-white">
+                    <LineChart className="h-5 w-5 text-primary" />
+                    Lesson Map
+                  </CardTitle>
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    Every lesson keeps the official source link, plus a checkpoint prompt you can use as your study
+                    exit ticket.
                   </p>
+                </CardHeader>
+                <CardContent className="grid gap-4 pt-6">
+                  {zerodhaTechnicalAnalysisTrack.lessons.map((lesson, index) => (
+                    <article
+                      key={lesson.id}
+                      className="rounded-2xl border border-primary/15 bg-background/40 p-5 transition-colors hover:border-primary/35"
+                    >
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge className="bg-primary text-primary-foreground">Lesson {index + 1}</Badge>
+                            <Badge variant="outline" className="border-primary/20 uppercase text-muted-foreground">
+                              {lesson.category}
+                            </Badge>
+                          </div>
+                          <div className="space-y-2">
+                            <h3 className="font-headline text-2xl text-white">{lesson.title}</h3>
+                            <p className="max-w-3xl text-sm leading-7 text-muted-foreground">{lesson.focus}</p>
+                          </div>
+                        </div>
+
+                        <div className="min-w-[140px] rounded-2xl border border-primary/15 bg-background/60 p-4">
+                          <p className="font-headline text-xs uppercase tracking-[0.28em] text-muted-foreground">
+                            Duration
+                          </p>
+                          <p className="mt-3 font-headline text-2xl text-white">{lesson.duration}</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_240px]">
+                        <div className="rounded-2xl border border-primary/10 bg-primary/5 p-4">
+                          <p className="font-headline text-xs uppercase tracking-[0.28em] text-primary">
+                            Checkpoint
+                          </p>
+                          <p className="mt-3 text-sm leading-7 text-white/90">{lesson.checkpoint}</p>
+                        </div>
+                        <div className="flex flex-col justify-between gap-3 rounded-2xl border border-primary/10 bg-background/60 p-4">
+                          <p className="text-sm leading-6 text-muted-foreground">
+                            Opens Zerodha Varsity in a new tab so you stay on the official lesson source.
+                          </p>
+                          <Button asChild variant="outline" className="w-full justify-between">
+                            <Link href={lesson.url} target="_blank" rel="noreferrer">
+                              Open Official Lesson
+                              <ExternalLink className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
                 </CardContent>
               </Card>
             </div>
-          ))}
+
+            <aside className="space-y-6">
+              <Card className="border-primary/20 bg-card/70 backdrop-blur">
+                <CardHeader className="border-b border-primary/10">
+                  <CardTitle className="flex items-center gap-3 font-headline text-2xl text-white">
+                    <Timer className="h-5 w-5 text-primary" />
+                    {indicatorSprint.title}
+                  </CardTitle>
+                  <p className="text-sm leading-6 text-muted-foreground">{indicatorSprint.description}</p>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-6">
+                  <div className="rounded-2xl border border-primary/15 bg-background/50 p-4">
+                    <p className="font-headline text-xs uppercase tracking-[0.28em] text-muted-foreground">
+                      Runtime
+                    </p>
+                    <p className="mt-3 font-headline text-3xl text-white">{indicatorSprint.totalDuration}</p>
+                  </div>
+                  {sprintLessons.map((lesson) => (
+                    <div key={lesson.id} className="rounded-2xl border border-primary/10 bg-background/40 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="font-headline text-lg text-white">{lesson.title}</h3>
+                        <span className="text-sm text-muted-foreground">{lesson.duration}</span>
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">{lesson.focus}</p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card className="border-primary/20 bg-card/70 backdrop-blur">
+                <CardHeader className="border-b border-primary/10">
+                  <CardTitle className="flex items-center gap-3 font-headline text-2xl text-white">
+                    <ListChecks className="h-5 w-5 text-primary" />
+                    How To Use
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-6">
+                  {studySteps.map((step, index) => (
+                    <div key={step.title} className="rounded-2xl border border-primary/10 bg-background/40 p-4">
+                      <p className="font-headline text-xs uppercase tracking-[0.28em] text-primary">Step {index + 1}</p>
+                      <h3 className="mt-2 font-headline text-xl text-white">{step.title}</h3>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">{step.copy}</p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card className="border-accent/20 bg-accent/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-3 font-headline text-xl uppercase tracking-tight text-accent">
+                    <Award className="h-5 w-5" />
+                    Next Milestone
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-lg font-semibold text-white">
+                    Finish all 12 lessons, then take one competition challenge with a written answer.
+                  </p>
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    That gives you one complete theory pass plus one applied checkpoint inside the product.
+                  </p>
+                  <div className="rounded-2xl border border-primary/15 bg-background/40 p-4">
+                    <p className="font-headline text-xs uppercase tracking-[0.28em] text-muted-foreground">
+                      Full Track Runtime
+                    </p>
+                    <p className="mt-3 font-headline text-2xl text-white">
+                      {zerodhaTechnicalAnalysisTrack.totalDuration}
+                    </p>
+                  </div>
+                  <Button asChild className="w-full">
+                    <Link href={zerodhaTechnicalAnalysisTrack.sourceUrl} target="_blank" rel="noreferrer">
+                      View All Video Modules
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            </aside>
+          </div>
         </div>
-
-        {/* CONTENT */}
-        {selectedModule && moduleContent[selectedModule] && (
-          <Card>
-            <CardHeader>
-              <CardTitle>{selectedModule}</CardTitle>
-            </CardHeader>
-
-            <CardContent className="space-y-4">
-              <img
-                src={moduleContent[selectedModule].image}
-                className="w-full max-h-64 object-contain bg-black rounded"
-                alt="module"
-              />
-
-              <p className="text-sm text-muted-foreground">
-                {moduleContent[selectedModule].description}
-              </p>
-
-              {moduleContent[selectedModule].sections.map((section, i) => (
-                <div key={i}>
-                  <h3 className="font-semibold mt-4">{section.title}</h3>
-                  <ul className="text-xs mt-1 space-y-1">
-                    {section.content.map((point, j) => (
-                      <li key={j}>• {point}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* MILESTONE */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Award className="w-4 h-4" />
-              Next Milestone
-            </CardTitle>
-          </CardHeader>
-
-          <CardContent>
-            {selectedModule ? (
-              <>
-                <p className="font-bold">
-                  {milestoneContent[selectedModule]?.title || "Complete Module"}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {milestoneContent[selectedModule]?.description || "Keep learning and practicing!"}
-                </p>
-
-                <button
-                  onClick={() => router.push("/replay")}
-                  className="mt-2 flex items-center gap-2 text-primary hover:text-primary/80 transition-colors"
-                >
-                  <PlayCircle className="w-4 h-4" />
-                  Go to Replay
-                </button>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Select a module to continue.
-              </p>
-            )}
-          </CardContent>
-        </Card>
       </main>
     </div>
   );

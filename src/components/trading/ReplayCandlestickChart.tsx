@@ -67,6 +67,7 @@ export const ReplayCandlestickChart: React.FC<ReplayCandlestickChartProps> = ({ 
     <div className="w-full h-full rounded-[1.25rem] overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(42,90,159,0.18),_transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))]">
       <svg
         viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
+        preserveAspectRatio="none"
         className="w-full h-full"
         role="img"
         aria-label="Replay candlestick chart"
