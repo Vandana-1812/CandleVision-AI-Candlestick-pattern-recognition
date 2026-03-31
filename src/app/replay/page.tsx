@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import {
   ArrowDownRight,
   ArrowUpRight,
+  Info,
   FastForward,
   Pause,
   Play,
@@ -270,6 +271,35 @@ export default function MarketReplayPage() {
                 </div>
               ) : (
                 <>
+                  <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 rounded-full bg-primary/15 p-2">
+                        <Info className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="space-y-2">
+                        <p className="font-headline text-sm uppercase text-white">How Market Replay Works</p>
+                        <p className="text-sm leading-6 text-muted-foreground">
+                          This is a practice simulator. Watch old market candles as if they are happening live, then
+                          place a paper trade to test your idea without risking real money.
+                        </p>
+                        <div className="grid gap-2 text-sm text-muted-foreground md:grid-cols-3">
+                          <div className="rounded-xl border border-white/10 bg-background/40 p-3">
+                            <span className="font-headline text-white">1. Watch</span>
+                            <p className="mt-1 leading-6">Study the current candle and price movement.</p>
+                          </div>
+                          <div className="rounded-xl border border-white/10 bg-background/40 p-3">
+                            <span className="font-headline text-white">2. Decide</span>
+                            <p className="mt-1 leading-6">Choose long if you expect price up, short if you expect price down.</p>
+                          </div>
+                          <div className="rounded-xl border border-white/10 bg-background/40 p-3">
+                            <span className="font-headline text-white">3. Review</span>
+                            <p className="mt-1 leading-6">Close the trade later and check profit, loss, and timing.</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-3">
                     <div className="rounded-xl border border-white/10 bg-background/80 backdrop-blur-md px-4 py-3">
                       <p className="text-[10px] uppercase font-headline text-muted-foreground">Current Price</p>
@@ -383,6 +413,9 @@ export default function MarketReplayPage() {
                     onChange={(event) => setTradeSize(Number(event.target.value) || 0)}
                     className="bg-background/40 border-white/10"
                   />
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    This is the paper-money amount used for your practice trade, not a real order.
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -401,6 +434,48 @@ export default function MarketReplayPage() {
                   >
                     Sell / Short
                   </Button>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-background/30 p-4 space-y-3">
+                  <p className="text-[10px] uppercase font-headline text-muted-foreground">What These Buttons Mean</p>
+                  <div className="space-y-2 text-sm leading-6 text-muted-foreground">
+                    <p>
+                      <span className="font-headline text-accent">Buy / Long</span> means you believe the price will go
+                      higher from here.
+                    </p>
+                    <p>
+                      <span className="font-headline text-destructive">Sell / Short</span> means you believe the price
+                      will go lower from here.
+                    </p>
+                    <p>
+                      <span className="font-headline text-white">Close Position</span> ends the practice trade and
+                      records your profit or loss.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+                  <p className="text-[10px] uppercase font-headline text-primary">Before You Enter A Trade</p>
+                  <div className="space-y-2 text-sm leading-6 text-muted-foreground">
+                    <p>
+                      Decide these <span className="font-headline text-white">3 things first</span>:
+                    </p>
+                    <p>
+                      <span className="font-headline text-white">Entry</span>: the price where you open the trade.
+                    </p>
+                    <p>
+                      <span className="font-headline text-white">Target</span>: the price where you take profit if the
+                      move goes your way.
+                    </p>
+                    <p>
+                      <span className="font-headline text-white">Stop Loss</span>: the price where you exit if the idea
+                      is wrong.
+                    </p>
+                    <p className="pt-1">
+                      Simple rule: <span className="font-headline text-white">do not enter first and decide later.</span>{' '}
+                      Plan entry, target, and stop loss before clicking Buy or Sell.
+                    </p>
+                  </div>
                 </div>
 
                 <Button
@@ -431,9 +506,17 @@ export default function MarketReplayPage() {
                         <span>Opened</span>
                         <span className="font-headline">{formatTimestamp(position.openedAt)}</span>
                       </div>
+                      <p className="pt-1 text-xs leading-5 text-muted-foreground">
+                        Keep replay running, then press <span className="font-headline text-white">Close Position</span>{' '}
+                        when you want to exit this practice trade.
+                      </p>
                     </>
                   ) : (
-                    <p className="text-sm text-muted-foreground">Open a long or short trade to start tracking replay performance.</p>
+                    <p className="text-sm leading-6 text-muted-foreground">
+                      Start by choosing <span className="font-headline text-accent">Buy / Long</span> if you expect an
+                      upward move, or <span className="font-headline text-destructive">Sell / Short</span> if you expect
+                      a downward move.
+                    </p>
                   )}
                 </div>
               </CardContent>

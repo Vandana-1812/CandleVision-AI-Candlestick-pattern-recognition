@@ -1,6 +1,8 @@
 "use client"
 
 import React from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { SidebarNav } from '@/components/dashboard/SidebarNav';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +11,8 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
+import { useCompetitionRoster } from '@/hooks/use-competition-roster';
+import { activeChallenges } from '@/lib/competition-data';
 import {
   ArrowUpRight,
   Crown,
@@ -21,39 +25,6 @@ import {
   Trophy,
   Users,
 } from 'lucide-react';
-
-const activeChallenges = [
-  {
-    id: 'btc-sprint',
-    name: 'Alpha Extraction: BTC/USDT',
-    style: 'Momentum Sprint',
-    participants: 1240,
-    prizePool: '$12,500',
-    timeLeft: '22h 14m',
-    difficulty: 'Elite',
-    focus: 'Intraday breakout execution',
-  },
-  {
-    id: 'macro-gauntlet',
-    name: 'Macro Gauntlet: Multi-Asset',
-    style: 'Cross-Market Rotation',
-    participants: 860,
-    prizePool: '$9,800',
-    timeLeft: '3d 08h',
-    difficulty: 'Advanced',
-    focus: 'Capital preservation under volatility',
-  },
-  {
-    id: 'stealth-ladder',
-    name: 'Stealth Ladder: Low Drawdown',
-    style: 'Risk Discipline',
-    participants: 472,
-    prizePool: '$4,000',
-    timeLeft: '11h 42m',
-    difficulty: 'Precision',
-    focus: 'Small edge, consistent execution',
-  },
-];
 
 const leaderboard = [
   { rank: 1, operator: 'Cypher_X', pnl: '+124.5%', score: 9850, trades: 142, streak: 14, badge: 'Legend' },
@@ -104,10 +75,13 @@ function getRankTone(rank: number) {
 }
 
 export default function CompetitionsPage() {
+  const router = useRouter();
   const { toast } = useToast();
   const [rankedQueueActive, setRankedQueueActive] = React.useState(false);
   const [squadRoomReady, setSquadRoomReady] = React.useState(false);
-  const [joinedChallenges, setJoinedChallenges] = React.useState<string[]>([]);
+  const { hydrated, joinedChallenges, isJoined, joinChallenge } = useCompetitionRoster();
+
+  const joinedChallengeCards = activeChallenges.filter((challenge) => joinedChallenges.includes(challenge.id));
 
   const handleRankedQueue = () => {
     const next = !rankedQueueActive;
@@ -141,21 +115,24 @@ export default function CompetitionsPage() {
   };
 
   const handleJoinChallenge = (challengeName: string, challengeId: string) => {
-    if (joinedChallenges.includes(challengeId)) {
+    if (isJoined(challengeId)) {
       toast({
         title: 'Already enlisted',
         description: `You are already registered for ${challengeName}.`,
       });
 
+      router.push(`/competitions/${challengeId}`);
       return;
     }
 
-    setJoinedChallenges([...joinedChallenges, challengeId]);
+    joinChallenge(challengeId);
 
     toast({
       title: 'Challenge joined',
-      description: `${challengeName} has been added to your competition roster.`,
+      description: `${challengeName} room is ready. Opening your competition terminal now.`,
     });
+
+    router.push(`/competitions/${challengeId}`);
   };
 
   return (
@@ -181,6 +158,62 @@ export default function CompetitionsPage() {
 
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.25fr)_420px] gap-6 items-start">
           <div className="space-y-6">
+            <Card className="holographic-card border-primary/20 overflow-hidden">
+              <CardHeader className="border-b border-white/5 pb-5">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div className="space-y-2">
+                    <CardTitle className="font-headline text-lg uppercase glow-blue flex items-center gap-2">
+                      <Trophy className="w-5 h-5 text-primary" />
+                      My Active Challenges
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Joined challenges become real rooms you can enter and manage from here.
+                    </p>
+                  </div>
+                  <Badge className="bg-white/5 text-muted-foreground border-white/10 uppercase font-headline tracking-[0.18em]">
+                    {hydrated ? `${joinedChallengeCards.length} joined` : 'syncing roster'}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-6">
+                {hydrated && joinedChallengeCards.length > 0 ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {joinedChallengeCards.map((challenge) => (
+                      <div key={challenge.id} className="rounded-2xl border border-primary/20 bg-primary/8 p-5 space-y-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] uppercase font-headline tracking-[0.18em] text-primary">{challenge.style}</p>
+                            <h3 className="font-headline text-lg mt-2">{challenge.name}</h3>
+                            <p className="text-sm text-muted-foreground mt-1">{challenge.objective}</p>
+                          </div>
+                          <Badge className="bg-accent/10 text-accent border-accent/20 uppercase font-headline tracking-[0.16em]">
+                            Active
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div className="rounded-xl border border-white/10 bg-background/40 p-3">
+                            <p className="text-[10px] uppercase font-headline text-muted-foreground">Format</p>
+                            <p className="font-headline mt-1">{challenge.format}</p>
+                          </div>
+                          <div className="rounded-xl border border-white/10 bg-background/40 p-3">
+                            <p className="text-[10px] uppercase font-headline text-muted-foreground">Session</p>
+                            <p className="font-headline mt-1">{challenge.duration}</p>
+                          </div>
+                        </div>
+                        <Button asChild className="w-full font-headline uppercase text-xs bg-accent text-black hover:bg-accent/80">
+                          <Link href={`/competitions/${challenge.id}`}>Enter challenge room</Link>
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-white/10 bg-background/35 p-6 text-sm text-muted-foreground">
+                    Join one of the live challenges below and it will appear here as a real competition room you can enter anytime.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <Card className="holographic-card border-primary/25 overflow-hidden bg-gradient-to-br from-primary/10 via-background to-background">
               <CardHeader className="border-b border-white/5 pb-5">
                 <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -261,7 +294,7 @@ export default function CompetitionsPage() {
                       Live Challenges
                     </CardTitle>
                     <p className="text-sm text-muted-foreground">
-                      Choose an arena based on your style, risk tolerance, and time horizon.
+                      Pick a short live task, solve it fast, and enter the room with a clear answer.
                     </p>
                   </div>
                   <Button
@@ -282,7 +315,7 @@ export default function CompetitionsPage() {
                     <div
                       key={challenge.id}
                       className={`rounded-2xl border p-5 space-y-4 bg-gradient-to-br ${
-                        joinedChallenges.includes(challenge.id)
+                        isJoined(challenge.id)
                           ? 'from-accent/10 via-background to-background border-accent/30'
                           : index === 0
                           ? 'from-primary/12 via-background to-background border-primary/25'
@@ -304,8 +337,8 @@ export default function CompetitionsPage() {
 
                       <div className="grid grid-cols-2 gap-3 text-sm">
                         <div className="rounded-xl bg-background/50 border border-white/10 p-3">
-                          <p className="text-[10px] uppercase font-headline text-muted-foreground">Prize Pool</p>
-                          <p className="font-headline text-lg">{challenge.prizePool}</p>
+                          <p className="text-[10px] uppercase font-headline text-muted-foreground">Reward</p>
+                          <p className="font-headline text-lg">{challenge.reward}</p>
                         </div>
                         <div className="rounded-xl bg-background/50 border border-white/10 p-3">
                           <p className="text-[10px] uppercase font-headline text-muted-foreground">Difficulty</p>
@@ -316,7 +349,7 @@ export default function CompetitionsPage() {
                       <div className="flex items-center justify-between text-xs font-headline uppercase text-muted-foreground">
                         <span className="flex items-center gap-1.5">
                           <Users className="w-3 h-3" />
-                          {challenge.participants.toLocaleString()} joined
+                          {challenge.participants.toLocaleString()} live
                         </span>
                         <span className="flex items-center gap-1.5 text-destructive">
                           <Timer className="w-3 h-3" />
@@ -327,14 +360,14 @@ export default function CompetitionsPage() {
                       <Button
                         onClick={() => handleJoinChallenge(challenge.name, challenge.id)}
                         className={`w-full font-headline text-xs uppercase ${
-                          joinedChallenges.includes(challenge.id)
+                          isJoined(challenge.id)
                             ? 'bg-accent text-black hover:bg-accent/80'
                             : index === 0
                             ? 'bg-accent text-black hover:bg-accent/80'
                             : 'bg-primary hover:bg-primary/80 text-white'
                         }`}
                       >
-                        {joinedChallenges.includes(challenge.id) ? 'Joined' : 'Join challenge'}
+                        {isJoined(challenge.id) ? 'Enter challenge' : 'Join challenge'}
                       </Button>
                     </div>
                   ))}
