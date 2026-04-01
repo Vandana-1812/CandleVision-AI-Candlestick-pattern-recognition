@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { useCompetitionRoster } from '@/hooks/use-competition-roster';
-import { activeChallenges } from '@/lib/competition-data';
+import { useUser } from '@/firebase';
 import {
   ArrowUpRight,
   Crown,
@@ -26,21 +26,34 @@ import {
   Users,
 } from 'lucide-react';
 
-const leaderboard = [
-  { rank: 1, operator: 'Cypher_X', pnl: '+124.5%', score: 9850, trades: 142, streak: 14, badge: 'Legend' },
-  { rank: 2, operator: 'NeonTracer', pnl: '+88.2%', score: 8420, trades: 98, streak: 9, badge: 'Surging' },
-  { rank: 3, operator: 'VoidWalker', pnl: '+76.4%', score: 7910, trades: 215, streak: 11, badge: 'Clinical' },
-  { rank: 4, operator: 'BitGhost', pnl: '+62.1%', score: 6200, trades: 56, streak: 7, badge: 'Stable' },
-  { rank: 5, operator: 'QuantumDev', pnl: '+45.8%', score: 5400, trades: 112, streak: 5, badge: 'Climber' },
-  { rank: 6, operator: 'PulseShift', pnl: '+39.6%', score: 5015, trades: 87, streak: 4, badge: 'Rising' },
-];
+type LeaderboardRow = {
+  rank: number;
+  userId: string;
+  operator: string;
+  score: number;
+  pnlPercent: number;
+  trades: number;
+  streak: number;
+  badge: string;
+};
 
-const friendsBoard = [
-  { rank: 18, operator: 'Nova_Arun', pnl: '+21.4%', score: 2410 },
-  { rank: 27, operator: 'PixelBear', pnl: '+16.8%', score: 2120 },
-  { rank: 34, operator: 'You', pnl: '+13.2%', score: 1980 },
-  { rank: 41, operator: 'ZetaLoop', pnl: '+9.7%', score: 1765 },
-];
+type CompetitionChallenge = {
+  id: string;
+  name: string;
+  style: string;
+  participants: number;
+  reward: string;
+  timeLeft: string;
+  difficulty: string;
+  focus: string;
+  symbol: string;
+  format: string;
+  objective: string;
+  duration: string;
+  task: string;
+  deliverables: string[];
+  evaluation: string[];
+};
 
 const missionLog = [
   { title: 'Finish Top 25%', progress: 74, reward: '+750 pts' },
@@ -77,11 +90,79 @@ function getRankTone(rank: number) {
 export default function CompetitionsPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useUser();
   const [rankedQueueActive, setRankedQueueActive] = React.useState(false);
   const [squadRoomReady, setSquadRoomReady] = React.useState(false);
+  const [leaderboardRows, setLeaderboardRows] = React.useState<LeaderboardRow[]>([]);
+  const [tierRows, setTierRows] = React.useState<LeaderboardRow[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = React.useState(true);
+  const [leaderboardError, setLeaderboardError] = React.useState<string | null>(null);
+  const [challenges, setChallenges] = React.useState<CompetitionChallenge[]>([]);
+  const [challengesLoading, setChallengesLoading] = React.useState(true);
+  const [challengesError, setChallengesError] = React.useState<string | null>(null);
   const { hydrated, joinedChallenges, isJoined, joinChallenge } = useCompetitionRoster();
 
-  const joinedChallengeCards = activeChallenges.filter((challenge) => joinedChallenges.includes(challenge.id));
+  React.useEffect(() => {
+    const loadLeaderboard = async () => {
+      setLeaderboardLoading(true);
+      setLeaderboardError(null);
+      try {
+        const query = user?.uid ? `?userId=${encodeURIComponent(user.uid)}` : '';
+        const response = await fetch(`/api/competitions/leaderboard${query}`);
+        if (!response.ok) {
+          const errorData = (await response.json()) as { error?: string };
+          setLeaderboardError(errorData.error || 'Failed to load leaderboard');
+          setLeaderboardRows([]);
+          setTierRows([]);
+          return;
+        }
+        const payload = (await response.json()) as { leaderboard?: LeaderboardRow[]; tier?: LeaderboardRow[] };
+        if (Array.isArray(payload.leaderboard)) {
+          setLeaderboardRows(payload.leaderboard);
+        }
+        if (Array.isArray(payload.tier)) {
+          setTierRows(payload.tier);
+        }
+      } catch {
+        setLeaderboardError('Network error loading leaderboard');
+        setLeaderboardRows([]);
+        setTierRows([]);
+      } finally {
+        setLeaderboardLoading(false);
+      }
+    };
+
+    void loadLeaderboard();
+  }, [user?.uid]);
+
+  React.useEffect(() => {
+    const loadChallenges = async () => {
+      setChallengesLoading(true);
+      setChallengesError(null);
+      try {
+        const response = await fetch('/api/competitions/challenges');
+        if (!response.ok) {
+          const errorData = (await response.json()) as { error?: string };
+          setChallengesError(errorData.error || 'Failed to load challenges');
+          setChallenges([]);
+          return;
+        }
+        const payload = (await response.json()) as { challenges?: CompetitionChallenge[] };
+        if (Array.isArray(payload.challenges)) {
+          setChallenges(payload.challenges);
+        }
+      } catch {
+        setChallengesError('Network error loading challenges');
+        setChallenges([]);
+      } finally {
+        setChallengesLoading(false);
+      }
+    };
+
+    void loadChallenges();
+  }, []);
+
+  const joinedChallengeCards = challenges.filter((challenge) => joinedChallenges.includes(challenge.id));
 
   const handleRankedQueue = () => {
     const next = !rankedQueueActive;
@@ -310,68 +391,84 @@ export default function CompetitionsPage() {
                 </div>
               </CardHeader>
               <CardContent className="pt-6">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                  {activeChallenges.map((challenge, index) => (
-                    <div
-                      key={challenge.id}
-                      className={`rounded-2xl border p-5 space-y-4 bg-gradient-to-br ${
-                        isJoined(challenge.id)
-                          ? 'from-accent/10 via-background to-background border-accent/30'
-                          : index === 0
-                          ? 'from-primary/12 via-background to-background border-primary/25'
-                          : 'from-white/[0.03] to-background border-white/10'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-2">
-                          <Badge className="bg-white/5 text-muted-foreground border-white/10 uppercase font-headline tracking-[0.18em]">
-                            {challenge.style}
-                          </Badge>
-                          <div>
-                            <h3 className="font-headline text-lg leading-tight">{challenge.name}</h3>
-                            <p className="text-sm text-muted-foreground mt-1">{challenge.focus}</p>
-                          </div>
-                        </div>
-                        <Flame className="w-5 h-5 text-accent shrink-0" />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div className="rounded-xl bg-background/50 border border-white/10 p-3">
-                          <p className="text-[10px] uppercase font-headline text-muted-foreground">Reward</p>
-                          <p className="font-headline text-lg">{challenge.reward}</p>
-                        </div>
-                        <div className="rounded-xl bg-background/50 border border-white/10 p-3">
-                          <p className="text-[10px] uppercase font-headline text-muted-foreground">Difficulty</p>
-                          <p className="font-headline text-lg">{challenge.difficulty}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs font-headline uppercase text-muted-foreground">
-                        <span className="flex items-center gap-1.5">
-                          <Users className="w-3 h-3" />
-                          {challenge.participants.toLocaleString()} live
-                        </span>
-                        <span className="flex items-center gap-1.5 text-destructive">
-                          <Timer className="w-3 h-3" />
-                          {challenge.timeLeft}
-                        </span>
-                      </div>
-
-                      <Button
-                        onClick={() => handleJoinChallenge(challenge.name, challenge.id)}
-                        className={`w-full font-headline text-xs uppercase ${
+                {challengesLoading ? (
+                  <div className="rounded-2xl border border-white/10 bg-background/50 p-8 text-center text-muted-foreground">
+                    <p className="font-headline text-sm uppercase">Loading challenges...</p>
+                  </div>
+                ) : challengesError ? (
+                  <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-6">
+                    <p className="font-headline text-sm uppercase text-destructive">Challenges unavailable</p>
+                    <p className="text-sm text-muted-foreground mt-2">{challengesError}</p>
+                  </div>
+                ) : challenges.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-white/10 bg-background/50 p-8 text-center text-muted-foreground">
+                    <p className="font-headline text-sm uppercase">No active challenges</p>
+                    <p className="text-sm mt-2">Check back soon for new competition challenges.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    {challenges.map((challenge, index) => (
+                      <div
+                        key={challenge.id}
+                        className={`rounded-2xl border p-5 space-y-4 bg-gradient-to-br ${
                           isJoined(challenge.id)
-                            ? 'bg-accent text-black hover:bg-accent/80'
+                            ? 'from-accent/10 via-background to-background border-accent/30'
                             : index === 0
-                            ? 'bg-accent text-black hover:bg-accent/80'
-                            : 'bg-primary hover:bg-primary/80 text-white'
+                            ? 'from-primary/12 via-background to-background border-primary/25'
+                            : 'from-white/[0.03] to-background border-white/10'
                         }`}
                       >
-                        {isJoined(challenge.id) ? 'Enter challenge' : 'Join challenge'}
-                      </Button>
-                    </div>
-                  ))}
-                </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-2">
+                            <Badge className="bg-white/5 text-muted-foreground border-white/10 uppercase font-headline tracking-[0.18em]">
+                              {challenge.style}
+                            </Badge>
+                            <div>
+                              <h3 className="font-headline text-lg leading-tight">{challenge.name}</h3>
+                              <p className="text-sm text-muted-foreground mt-1">{challenge.focus}</p>
+                            </div>
+                          </div>
+                          <Flame className="w-5 h-5 text-accent shrink-0" />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div className="rounded-xl bg-background/50 border border-white/10 p-3">
+                            <p className="text-[10px] uppercase font-headline text-muted-foreground">Reward</p>
+                            <p className="font-headline text-lg">{challenge.reward}</p>
+                          </div>
+                          <div className="rounded-xl bg-background/50 border border-white/10 p-3">
+                            <p className="text-[10px] uppercase font-headline text-muted-foreground">Difficulty</p>
+                            <p className="font-headline text-lg">{challenge.difficulty}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs font-headline uppercase text-muted-foreground">
+                          <span className="flex items-center gap-1.5">
+                            <Users className="w-3 h-3" />
+                            {challenge.participants.toLocaleString()} live
+                          </span>
+                          <span className="flex items-center gap-1.5 text-destructive">
+                            <Timer className="w-3 h-3" />
+                            {challenge.timeLeft}
+                          </span>
+                        </div>
+
+                        <Button
+                          onClick={() => handleJoinChallenge(challenge.name, challenge.id)}
+                          className={`w-full font-headline text-xs uppercase ${
+                            isJoined(challenge.id)
+                              ? 'bg-accent text-black hover:bg-accent/80'
+                              : index === 0
+                              ? 'bg-accent text-black hover:bg-accent/80'
+                              : 'bg-primary hover:bg-primary/80 text-white'
+                          }`}
+                        >
+                          {isJoined(challenge.id) ? 'Enter challenge' : 'Join challenge'}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -398,71 +495,138 @@ export default function CompetitionsPage() {
                   </TabsList>
 
                   <TabsContent value="global">
-                    <div className="overflow-hidden rounded-2xl border border-white/10">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="hover:bg-transparent border-white/10 bg-white/[0.02]">
-                            <TableHead className="w-16 font-headline text-xs uppercase text-muted-foreground">Rank</TableHead>
-                            <TableHead className="font-headline text-xs uppercase text-muted-foreground">Operator</TableHead>
-                            <TableHead className="font-headline text-xs uppercase text-muted-foreground">PnL</TableHead>
-                            <TableHead className="font-headline text-xs uppercase text-muted-foreground">Streak</TableHead>
-                            <TableHead className="font-headline text-xs uppercase text-muted-foreground">Trades</TableHead>
-                            <TableHead className="text-right font-headline text-xs uppercase text-muted-foreground">Score</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {leaderboard.map((user) => (
-                            <TableRow key={user.rank} className="border-white/5 hover:bg-white/5">
-                              <TableCell className="font-headline font-bold">
-                                <span className={getRankTone(user.rank)}>#{user.rank}</span>
-                              </TableCell>
-                              <TableCell>
-                                <div className="space-y-1">
-                                  <p className="font-medium">{user.operator}</p>
-                                  <Badge className="bg-white/5 text-muted-foreground border-white/10 uppercase font-headline tracking-[0.16em]">
-                                    {user.badge}
-                                  </Badge>
-                                </div>
-                              </TableCell>
-                              <TableCell className="font-headline text-accent">{user.pnl}</TableCell>
-                              <TableCell className="text-muted-foreground">{user.streak} wins</TableCell>
-                              <TableCell className="text-muted-foreground">{user.trades}</TableCell>
-                              <TableCell className="text-right font-headline font-bold">{user.score.toLocaleString()}</TableCell>
+                    {leaderboardLoading ? (
+                      <div className="rounded-2xl border border-white/10 bg-background/50 p-8 text-center text-muted-foreground">
+                        <p className="font-headline text-sm uppercase">Loading leaderboard...</p>
+                      </div>
+                    ) : leaderboardError ? (
+                      <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-6">
+                        <p className="font-headline text-sm uppercase text-destructive">Leaderboard unavailable</p>
+                        <p className="text-sm text-muted-foreground mt-2">{leaderboardError}</p>
+                        <Button 
+                          onClick={() => void (async () => {
+                            setLeaderboardLoading(true);
+                            setLeaderboardError(null);
+                            try {
+                              const query = user?.uid ? `?userId=${encodeURIComponent(user.uid)}` : '';
+                              const response = await fetch(`/api/competitions/leaderboard${query}`);
+                              if (!response.ok) {
+                                const errorData = (await response.json()) as { error?: string };
+                                setLeaderboardError(errorData.error || 'Failed to load leaderboard');
+                                setLeaderboardRows([]);
+                                setTierRows([]);
+                                return;
+                              }
+                              const payload = (await response.json()) as { leaderboard?: LeaderboardRow[]; tier?: LeaderboardRow[] };
+                              if (Array.isArray(payload.leaderboard)) setLeaderboardRows(payload.leaderboard);
+                              if (Array.isArray(payload.tier)) setTierRows(payload.tier);
+                            } catch {
+                              setLeaderboardError('Network error loading leaderboard');
+                            } finally {
+                              setLeaderboardLoading(false);
+                            }
+                          })()}
+                          className="mt-4 font-headline text-xs uppercase"
+                          variant="outline"
+                        >
+                          Retry
+                        </Button>
+                      </div>
+                    ) : leaderboardRows.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-white/10 bg-background/50 p-8 text-center text-muted-foreground">
+                        <p className="font-headline text-sm uppercase">No submissions yet</p>
+                        <p className="text-sm mt-2">Join a challenge and complete it to appear on the leaderboard.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-hidden rounded-2xl border border-white/10">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="hover:bg-transparent border-white/10 bg-white/[0.02]">
+                              <TableHead className="w-16 font-headline text-xs uppercase text-muted-foreground">Rank</TableHead>
+                              <TableHead className="font-headline text-xs uppercase text-muted-foreground">Operator</TableHead>
+                              <TableHead className="font-headline text-xs uppercase text-muted-foreground">PnL</TableHead>
+                              <TableHead className="font-headline text-xs uppercase text-muted-foreground">Streak</TableHead>
+                              <TableHead className="font-headline text-xs uppercase text-muted-foreground">Trades</TableHead>
+                              <TableHead className="text-right font-headline text-xs uppercase text-muted-foreground">Score</TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
+                          </TableHeader>
+                          <TableBody>
+                            {leaderboardRows.map((row) => (
+                              <TableRow key={row.rank} className="border-white/5 hover:bg-white/5">
+                                <TableCell className="font-headline font-bold">
+                                  <span className={getRankTone(row.rank)}>#{row.rank}</span>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="space-y-1">
+                                    <p className="font-medium">{row.operator}</p>
+                                    <Badge className="bg-white/5 text-muted-foreground border-white/10 uppercase font-headline tracking-[0.16em]">
+                                      {row.badge}
+                                    </Badge>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="font-headline text-accent">{`${row.pnlPercent >= 0 ? '+' : ''}${row.pnlPercent.toFixed(1)}%`}</TableCell>
+                                <TableCell className="text-muted-foreground">{row.streak} wins</TableCell>
+                                <TableCell className="text-muted-foreground">{row.trades}</TableCell>
+                                <TableCell className="text-right font-headline font-bold">{row.score.toLocaleString()}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
                   </TabsContent>
 
                   <TabsContent value="friends">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {friendsBoard.map((row) => (
-                        <div key={row.rank} className={`rounded-2xl border p-4 ${
-                          row.operator === 'You'
-                            ? 'border-primary/25 bg-primary/8'
-                            : 'border-white/10 bg-white/[0.02]'
-                        }`}>
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <p className="text-[10px] uppercase font-headline text-muted-foreground">Rank #{row.rank}</p>
-                              <p className="text-lg font-headline mt-1">{row.operator}</p>
+                    {leaderboardLoading ? (
+                      <div className="rounded-2xl border border-white/10 bg-background/50 p-8 text-center text-muted-foreground">
+                        <p className="font-headline text-sm uppercase">Loading your tier...</p>
+                      </div>
+                    ) : leaderboardError ? (
+                      <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-6">
+                        <p className="font-headline text-sm uppercase text-destructive">Tier data unavailable</p>
+                        <p className="text-sm text-muted-foreground mt-2">{leaderboardError}</p>
+                      </div>
+                    ) : tierRows.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-white/10 bg-background/50 p-8 text-center text-muted-foreground">
+                        <p className="font-headline text-sm uppercase">No rank data available</p>
+                        <p className="text-sm mt-2">Complete a challenge to see your tier standings.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {tierRows.map((row) => (
+                          <div
+                            key={row.rank}
+                            className={`rounded-2xl border p-4 ${
+                              row.userId === user?.uid
+                                ? 'border-primary/25 bg-primary/8'
+                                : 'border-white/10 bg-white/[0.02]'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-[10px] uppercase font-headline text-muted-foreground">Rank #{row.rank}</p>
+                                <p className="text-lg font-headline mt-1">{row.operator}</p>
+                              </div>
+                              <ArrowUpRight
+                                className={`w-5 h-5 ${row.userId === user?.uid ? 'text-primary' : 'text-accent'}`}
+                              />
                             </div>
-                            <ArrowUpRight className={`w-5 h-5 ${row.operator === 'You' ? 'text-primary' : 'text-accent'}`} />
+                            <div className="mt-4 flex items-end justify-between">
+                              <div>
+                                <p className="text-[10px] uppercase font-headline text-muted-foreground">PnL</p>
+                                <p className="text-xl font-headline text-accent">
+                                  {`${row.pnlPercent >= 0 ? '+' : ''}${row.pnlPercent.toFixed(1)}%`}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-[10px] uppercase font-headline text-muted-foreground">Score</p>
+                                <p className="text-lg font-headline">{row.score.toLocaleString()}</p>
+                              </div>
+                            </div>
                           </div>
-                          <div className="mt-4 flex items-end justify-between">
-                            <div>
-                              <p className="text-[10px] uppercase font-headline text-muted-foreground">PnL</p>
-                              <p className="text-xl font-headline text-accent">{row.pnl}</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-[10px] uppercase font-headline text-muted-foreground">Score</p>
-                              <p className="text-lg font-headline">{row.score.toLocaleString()}</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </TabsContent>
                 </Tabs>
               </CardContent>

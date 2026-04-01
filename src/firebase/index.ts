@@ -4,9 +4,11 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { firebaseConfig, isConfigValid } from './config';
+import { reportClientError } from '@/lib/telemetry';
 
 export function initializeFirebase() {
   if (!isConfigValid) {
+    reportClientError('firebase.config', new Error('Firebase client configuration missing or invalid'));
     return { app: null, auth: null, db: null };
   }
 
@@ -17,7 +19,7 @@ export function initializeFirebase() {
 
     return { app, auth, db };
   } catch (error) {
-    console.error("Firebase initialization failed:", error);
+    reportClientError('firebase.initialize', error);
     return { app: null, auth: null, db: null };
   }
 }

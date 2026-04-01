@@ -195,6 +195,12 @@
   transform: translateX(100%);
 }
 
+@media (min-width: 768px) {
+  .site-cursor-enabled {
+    cursor: none;
+  }
+}
+
 @media (max-width: 767px) {
   .guest-dashboard {
     cursor: auto;

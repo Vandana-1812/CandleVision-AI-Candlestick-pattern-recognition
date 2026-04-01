@@ -11,7 +11,7 @@ import { MarketChart3D } from '@/components/trading/MarketChart3D';
 import { AISignalPanel } from '@/components/trading/AISignalPanel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { fetchRealOHLC, OHLC } from '@/lib/market-data';
+import { fetchMarketOHLC, MarketDataFetchMeta, OHLC } from '@/lib/market-data';
 import { LineChart, Search, Bell, User, Maximize2, Loader2, AlertCircle, Globe, Cpu } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -23,6 +23,7 @@ export default function Home() {
   const [searchInput, setSearchInput] = useState('BTC');
   const [marketLoading, setMarketLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [marketMeta, setMarketMeta] = useState<MarketDataFetchMeta | null>(null);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -42,8 +43,9 @@ export default function Home() {
       setMarketLoading(true);
       setError(null);
       try {
-        const result = await fetchRealOHLC(symbol);
-        setData(result);
+        const result = await fetchMarketOHLC(symbol, '1h', 60);
+        setData(result.candles);
+        setMarketMeta(result.meta);
       } catch (e) {
         setError("Synchronization failure with market data stream.");
       } finally {
@@ -74,7 +76,9 @@ export default function Home() {
   if (!user) return null;
 
   const currentPrice = data.length > 0 ? data[data.length - 1].close : 0;
-  const isSimulated = data.length > 0 && data[0].isSimulated;
+  const isSimulated = Boolean(marketMeta?.isSimulated || (data.length > 0 && data[0].isSimulated));
+  const providerLabel = marketMeta?.providerId ? marketMeta.providerId.toUpperCase() : 'UNKNOWN';
+  const fallbackCount = Math.max(0, (marketMeta?.fallbackChain.length ?? 1) - 1);
   const virtualBalance = profile?.virtualBalance ?? 10000;
 
   return (
@@ -128,6 +132,8 @@ export default function Home() {
                   </CardTitle>
                   <p className="text-xs text-muted-foreground font-body">
                     {isSimulated ? 'AI-Estimated Market Projection' : 'Live Real-Time Exchange Stream'}
+                    {marketMeta ? ` • Provider: ${providerLabel}` : ''}
+                    {fallbackCount > 0 ? ` • Fallback hops: ${fallbackCount}` : ''}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">

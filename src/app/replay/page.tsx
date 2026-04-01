@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { SidebarNav } from '@/components/dashboard/SidebarNav';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ReplayCandlestickChart } from '@/components/trading/ReplayCandlestickChart';
-import { fetchRealOHLC, OHLC } from '@/lib/market-data';
+import { fetchMarketOHLC, MarketDataFetchMeta, OHLC } from '@/lib/market-data';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -90,6 +90,14 @@ export default function MarketReplayPage() {
   const [position, setPosition] = useState<ReplayPosition | null>(null);
   const [completedTrades, setCompletedTrades] = useState<ReplayTrade[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loadVersion, setLoadVersion] = useState(0);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [marketMeta, setMarketMeta] = useState<MarketDataFetchMeta | null>(null);
+
+  const replayStartIndex = useMemo(
+    () => Math.min(Math.max(MIN_REPLAY_WINDOW, 1), fullData.length || MIN_REPLAY_WINDOW),
+    [fullData.length]
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -99,14 +107,26 @@ export default function MarketReplayPage() {
       setError(null);
 
       try {
-        const data = await fetchRealOHLC('BTC', '1h', 160);
+        const result = await fetchMarketOHLC('BTC', '1h', 160, { assetClass: 'crypto' });
+        const data = result.candles;
 
         if (!isMounted) return;
 
+        if (!data.length) {
+          throw new Error('Replay feed returned no candles.');
+        }
+
+        setMarketMeta(result.meta);
         setFullData(data);
-        setCurrentIndex(Math.min(Math.max(MIN_REPLAY_WINDOW, 1), data.length));
+        setCurrentIndex(Math.min(Math.max(MIN_REPLAY_WINDOW, 1), data.length || MIN_REPLAY_WINDOW));
+        if (result.meta.isSimulated) {
+          setActionFeedback(`Using simulated fallback feed (${result.meta.fallbackChain.join(' -> ')}).`);
+        } else {
+          setActionFeedback(`Replay feed online via ${result.meta.providerId}.`);
+        }
       } catch (loadError) {
         if (!isMounted) return;
+        console.warn('[replay] failed to load replay candles', loadError);
         setError('Unable to initialize replay feed.');
       } finally {
         if (isMounted) {
@@ -120,7 +140,7 @@ export default function MarketReplayPage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [loadVersion]);
 
   const displayData = useMemo(
     () => fullData.slice(0, currentIndex),
@@ -144,28 +164,42 @@ export default function MarketReplayPage() {
   const averagePnl = meaningfulTrades.length ? realizedPnl / meaningfulTrades.length : 0;
 
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined;
+    if (!isPlaying || !fullData.length) return;
 
-    if (isPlaying && currentIndex < fullData.length) {
-      interval = setInterval(() => {
-        setCurrentIndex((prev) => Math.min(prev + 1, fullData.length));
-      }, speed);
-    } else {
-      setIsPlaying(false);
-    }
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => {
+        const next = Math.min(prev + 1, fullData.length);
+        if (next >= fullData.length) {
+          setIsPlaying(false);
+          setActionFeedback('Replay reached the final candle.');
+        }
+        return next;
+      });
+    }, speed);
 
     return () => {
-      if (interval) clearInterval(interval);
+      clearInterval(interval);
     };
-  }, [isPlaying, currentIndex, fullData.length, speed]);
+  }, [isPlaying, fullData.length, speed]);
 
   const openPosition = (side: ReplayPosition['side']) => {
-    if (!currentBar || position) return;
+    if (!currentBar) {
+      setActionFeedback('Replay data is not ready yet.');
+      return;
+    }
+
+    if (position) {
+      setActionFeedback('Close the current position before opening a new trade.');
+      return;
+    }
 
     const normalizedTradeSize = Math.max(100, Math.floor(tradeSize || 0));
     const capitalToDeploy = Math.min(normalizedTradeSize, balance);
 
-    if (capitalToDeploy <= 0) return;
+    if (capitalToDeploy <= 0) {
+      setActionFeedback('Insufficient balance to place this trade.');
+      return;
+    }
 
     const quantity = capitalToDeploy / currentBar.close;
 
@@ -177,10 +211,14 @@ export default function MarketReplayPage() {
       investedAmount: capitalToDeploy,
       openedAt: currentBar.timestamp,
     });
+    setActionFeedback(`${side === 'long' ? 'Long' : 'Short'} position opened.`);
   };
 
   const closePosition = () => {
-    if (!position || !currentBar) return;
+    if (!position || !currentBar) {
+      setActionFeedback('No active position to close.');
+      return;
+    }
 
     const pnl =
       position.side === 'long'
@@ -205,24 +243,38 @@ export default function MarketReplayPage() {
       ...prev,
     ]);
     setPosition(null);
+    setActionFeedback('Position closed and trade recorded.');
   };
 
   const resetSession = () => {
     setIsPlaying(false);
-    setCurrentIndex(Math.min(Math.max(MIN_REPLAY_WINDOW, 1), fullData.length || MIN_REPLAY_WINDOW));
+    setCurrentIndex(replayStartIndex);
     setBalance(DEFAULT_BALANCE);
     setTradeSize(DEFAULT_TRADE_SIZE);
     setPosition(null);
     setCompletedTrades([]);
+    setActionFeedback('Replay session reset.');
   };
 
   const stepReplay = (direction: -1 | 1) => {
     setIsPlaying(false);
     setCurrentIndex((prev) => {
       const nextIndex = prev + direction;
-      return Math.max(MIN_REPLAY_WINDOW, Math.min(nextIndex, fullData.length));
+      return Math.max(replayStartIndex, Math.min(nextIndex, fullData.length));
     });
   };
+
+  const retryReplayLoad = () => {
+    setIsPlaying(false);
+    setPosition(null);
+    setCompletedTrades([]);
+    setActionFeedback('Retrying replay feed initialization...');
+    setLoadVersion((prev) => prev + 1);
+  };
+
+  const canOpenPosition = Boolean(currentBar) && !position && balance >= 100;
+  const canPlay = fullData.length > 0 && !error;
+  const hasReachedEnd = fullData.length > 0 && currentIndex >= fullData.length;
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -243,13 +295,16 @@ export default function MarketReplayPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-wrap justify-end">
+                <Badge className="bg-white/10 text-white border-white/20 uppercase">
+                  Source: {marketMeta?.providerId ?? 'unknown'}
+                </Badge>
                 <Badge className="bg-primary/10 text-primary border-primary/20">
                   {replayProgress.toFixed(0)}% complete
                 </Badge>
-                <Button variant="outline" size="icon" onClick={() => stepReplay(-1)} disabled={currentIndex <= MIN_REPLAY_WINDOW}>
+                <Button variant="outline" size="icon" onClick={() => stepReplay(-1)} disabled={currentIndex <= replayStartIndex}>
                   <Rewind className="w-4 h-4" />
                 </Button>
-                <Button variant="outline" size="icon" onClick={() => setIsPlaying((prev) => !prev)} disabled={!fullData.length}>
+                <Button variant="outline" size="icon" onClick={() => setIsPlaying((prev) => !prev)} disabled={!canPlay || hasReachedEnd}>
                   {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                 </Button>
                 <Button variant="outline" size="icon" onClick={() => stepReplay(1)} disabled={currentIndex >= fullData.length}>
@@ -266,11 +321,19 @@ export default function MarketReplayPage() {
                   LOADING REPLAY FEED
                 </div>
               ) : error ? (
-                <div className="h-full flex items-center justify-center text-destructive font-headline text-xs tracking-[0.2em]">
-                  {error}
+                <div className="h-full flex flex-col items-center justify-center gap-3 text-destructive font-headline text-xs tracking-[0.2em]">
+                  <span>{error}</span>
+                  <Button variant="outline" className="font-headline text-[10px] uppercase" onClick={retryReplayLoad}>
+                    Retry Feed
+                  </Button>
                 </div>
               ) : (
                 <>
+                  {actionFeedback ? (
+                    <div className="rounded-xl border border-primary/25 bg-primary/10 px-4 py-3 text-xs uppercase tracking-[0.15em] text-primary font-headline">
+                      {actionFeedback}
+                    </div>
+                  ) : null}
                   <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 rounded-full bg-primary/15 p-2">
@@ -342,9 +405,12 @@ export default function MarketReplayPage() {
                     <Slider
                       value={[currentIndex]}
                       max={fullData.length || MIN_REPLAY_WINDOW}
-                      min={Math.min(MIN_REPLAY_WINDOW, fullData.length || MIN_REPLAY_WINDOW)}
+                      min={replayStartIndex}
                       step={1}
                       onValueChange={(value) => {
+                        if (isPlaying) {
+                          setActionFeedback('Replay paused while scrubbing timeline.');
+                        }
                         setIsPlaying(false);
                         setCurrentIndex(value[0]);
                       }}
@@ -422,7 +488,7 @@ export default function MarketReplayPage() {
                   <Button
                     className="bg-accent hover:bg-accent/80 text-black font-headline text-sm"
                     onClick={() => openPosition('long')}
-                    disabled={!currentBar || !!position || balance < 100}
+                    disabled={!canOpenPosition}
                   >
                     Buy / Long
                   </Button>
@@ -430,7 +496,7 @@ export default function MarketReplayPage() {
                     variant="outline"
                     className="border-destructive/40 text-destructive hover:bg-destructive/10 font-headline text-sm"
                     onClick={() => openPosition('short')}
-                    disabled={!currentBar || !!position || balance < 100}
+                    disabled={!canOpenPosition}
                   >
                     Sell / Short
                   </Button>

@@ -1,17 +1,14 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
+  AuthError,
 } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth, useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { isConfigValid } from '@/firebase/config';
+import { authenticateWithEmail, authenticateWithGoogle } from '@/lib/auth-service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +17,7 @@ import { Zap, LogIn, AlertCircle, Loader2, Info, UserPlus, ArrowLeft } from 'luc
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-export default function AuthPage() {
+function AuthContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -53,53 +50,53 @@ export default function AuthPage() {
     setIsLoading(true);
     try {
       if (isRegistering) {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-
-        if (db) {
-          const userRef = doc(db, 'users', userCredential.user.uid);
-          const profileData = {
-            uid: userCredential.user.uid,
-            email: userCredential.user.email,
-            displayName: email.split('@')[0],
-            virtualBalance: 10000,
-            createdAt: serverTimestamp(),
-            tradesCount: 0,
-            winRate: 0,
-          };
-
-          setDoc(userRef, profileData, { merge: true }).catch(async () => {
+        await authenticateWithEmail({
+          auth,
+          db,
+          email,
+          password,
+          mode: 'register',
+        }).catch(async (error) => {
+          if (error instanceof Error && String(error.message).toLowerCase().includes('permission')) {
             const permissionError = new FirestorePermissionError({
-              path: userRef.path,
+              path: `users/*`,
               operation: 'write',
-              requestResourceData: profileData,
             });
             errorEmitter.emit('permission-error', permissionError);
-          });
-        }
+          }
+          throw error;
+        });
 
         toast({ title: 'Account created', description: 'Welcome to CandleVision!' });
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        await authenticateWithEmail({
+          auth,
+          db,
+          email,
+          password,
+          mode: 'login',
+        });
         toast({ title: 'Signed in successfully' });
       }
       router.push('/');
-    } catch (error: any) {
-      let message = error.message;
+    } catch (error: unknown) {
+      const authError = error as Partial<AuthError>;
+      let message = error instanceof Error ? error.message : 'Authentication request failed';
 
-      if (error.code === 'auth/operation-not-allowed') {
+      if (authError.code === 'auth/operation-not-allowed') {
         message = 'Login Provider Disabled';
         setErrorDetails(
           'The Email/Password sign-in provider is not enabled in your Firebase Console. Go to Authentication > Sign-in method to enable it.'
         );
-      } else if (error.code === 'auth/invalid-credential') {
+      } else if (authError.code === 'auth/invalid-credential') {
         message = 'Invalid access credentials.';
         setErrorDetails(
           "Ensure your password is correct. If you haven't created an account yet, click 'Initialize New Operator Account' below."
         );
-      } else if (error.code === 'auth/email-already-in-use') {
+      } else if (authError.code === 'auth/email-already-in-use') {
         message = 'Operator ID already exists.';
         setErrorDetails('This email is already registered. Please try logging in instead.');
-      } else if (error.code === 'auth/weak-password') {
+      } else if (authError.code === 'auth/weak-password') {
         message = 'Access key too weak.';
         setErrorDetails('Password should be at least 6 characters long.');
       }
@@ -119,34 +116,23 @@ export default function AuthPage() {
     setIsLoading(true);
     setErrorDetails(null);
     try {
-      const provider = new GoogleAuthProvider();
-      const userCredential = await signInWithPopup(auth, provider);
-
-      if (db) {
-        const userRef = doc(db, 'users', userCredential.user.uid);
-        const profileData = {
-          uid: userCredential.user.uid,
-          email: userCredential.user.email,
-          displayName: userCredential.user.displayName,
-          virtualBalance: 10000,
-          createdAt: serverTimestamp(),
-          tradesCount: 0,
-          winRate: 0,
-        };
-
-        setDoc(userRef, profileData, { merge: true }).catch(async () => {
+      await authenticateWithGoogle({ auth, db }).catch(async (error) => {
+        if (error instanceof Error && String(error.message).toLowerCase().includes('permission')) {
           const permissionError = new FirestorePermissionError({
-            path: userRef.path,
+            path: `users/*`,
             operation: 'write',
-            requestResourceData: profileData,
           });
           errorEmitter.emit('permission-error', permissionError);
-        });
-      }
+        }
+        throw error;
+      });
 
       router.push('/');
-    } catch (error: any) {
-      if (error.code === 'auth/operation-not-allowed') {
+    } catch (error: unknown) {
+      const authError = error as Partial<AuthError>;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown authentication error';
+
+      if (authError.code === 'auth/operation-not-allowed') {
         setErrorDetails(
           "Google sign-in is not enabled. Enable 'Google' in your Firebase Console under Authentication > Sign-in method."
         );
@@ -154,7 +140,7 @@ export default function AuthPage() {
       toast({
         variant: 'destructive',
         title: 'Google Sync Error',
-        description: error.message,
+        description: errorMessage,
       });
     } finally {
       setIsLoading(false);
@@ -297,5 +283,24 @@ export default function AuthPage() {
         </CardFooter>
       </Card>
     </div>
+  );
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-4">
+          <div className="pointer-events-none absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 50% 50%, #2a5a9f 0%, transparent 100%)' }} />
+          <Card className="z-10 w-full max-w-md border-primary/30">
+            <CardContent className="flex min-h-[200px] items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </CardContent>
+          </Card>
+        </div>
+      }
+    >
+      <AuthContent />
+    </Suspense>
   );
 }

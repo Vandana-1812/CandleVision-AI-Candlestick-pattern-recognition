@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { errorEmitter } from '../error-emitter';
 import { FirestorePermissionError } from '../errors';
+import { reportClientError } from '@/lib/telemetry';
 
 export function useCollection<T = DocumentData>(query: Query<T> | null) {
   const [data, setData] = useState<T[]>([]);
@@ -38,6 +39,10 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
           operation: 'list',
         });
         errorEmitter.emit('permission-error', permissionError);
+        reportClientError('firestore.useCollection', serverError, {
+          path: (query as any)._query?.path?.toString() || 'unknown',
+          operation: 'list',
+        });
         setError(serverError);
         setLoading(false);
       }

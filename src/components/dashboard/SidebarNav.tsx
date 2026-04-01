@@ -24,6 +24,7 @@ import { useRouter } from 'next/navigation';
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
   { icon: LineChart, label: 'AI Performance', href: '/performance' },
+  { icon: BarChart3, label: 'Analytics', href: '/analytics' },
   { icon: PlayCircle, label: 'Market Replay', href: '/replay' },
   { icon: GraduationCap, label: 'Learning Hub', href: '/learning' },
   { icon: Trophy, label: 'Competitions', href: '/competitions' },

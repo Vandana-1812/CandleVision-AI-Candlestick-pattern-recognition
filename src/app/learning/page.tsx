@@ -1,29 +1,36 @@
 "use client";
 
 import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SidebarNav } from '@/components/dashboard/SidebarNav';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { indicatorSprint, zerodhaTechnicalAnalysisTrack } from '@/lib/learning-tracks';
 import {
+  LearningProgressDocument,
+  savePersonalizationContext,
+  saveQuizScore,
+  setLessonCompletion,
+} from '@/lib/learning-progress';
+import { useDoc, useFirestore, useUser } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import {
   Award,
+  BrainCircuit,
   BookOpen,
   ExternalLink,
   GraduationCap,
   LineChart,
+  Loader2,
   ListChecks,
   PlayCircle,
   Timer,
 } from 'lucide-react';
-
-const coverage = [
-  { label: 'Foundations', value: 28 },
-  { label: 'Patterns', value: 36 },
-  { label: 'Indicators', value: 22 },
-  { label: 'Execution', value: 14 },
-];
 
 const studySteps = [
   {
@@ -44,7 +51,237 @@ const sprintLessons = zerodhaTechnicalAnalysisTrack.lessons.filter((lesson) =>
   indicatorSprint.lessonIds.includes(lesson.id)
 );
 
+type PersonalizedLearningResult = {
+  learningPath: Array<{
+    module: string;
+    description: string;
+  }>;
+  rationale: string;
+};
+
 export default function LearningPage() {
+  const { user } = useUser();
+  const db = useFirestore();
+
+  const progressRef = useMemo(() => {
+    if (!db || !user) return null;
+    return doc(db, 'users', user.uid, 'learning', 'progress');
+  }, [db, user]);
+
+  const { data: progressDoc } = useDoc<LearningProgressDocument>(progressRef);
+
+  const [progressSummary, setProgressSummary] = useState(
+    'Foundations 28%, Patterns 36%, Indicators 22%, Execution 14%. I am consistent with videos but struggle to convert concepts into clear trade plans.'
+  );
+  const [weaknessesText, setWeaknessesText] = useState(
+    'Support/resistance validation, Indicator stacking, Risk-reward planning'
+  );
+  const [learningStyle, setLearningStyle] = useState('visual');
+  const [personalizedResult, setPersonalizedResult] = useState<PersonalizedLearningResult | null>(null);
+  const [personalizationError, setPersonalizationError] = useState('');
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [saveFeedback, setSaveFeedback] = useState('');
+  const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
+  const [quizDrafts, setQuizDrafts] = useState<Record<string, string>>({});
+  const [savingLessonId, setSavingLessonId] = useState<string | null>(null);
+  const [savingQuizId, setSavingQuizId] = useState<string | null>(null);
+  const personalizationHydratedRef = useRef(false);
+
+  const lessonById = useMemo(() => {
+    const map = new Map<string, (typeof zerodhaTechnicalAnalysisTrack.lessons)[number]>();
+    for (const lesson of zerodhaTechnicalAnalysisTrack.lessons) {
+      map.set(lesson.id, lesson);
+    }
+    return map;
+  }, []);
+
+  const categoryTotals = useMemo(() => {
+    return {
+      foundation: zerodhaTechnicalAnalysisTrack.lessons.filter((lesson) => lesson.category === 'foundation').length,
+      patternsAndLevels: zerodhaTechnicalAnalysisTrack.lessons.filter(
+        (lesson) => lesson.category === 'patterns' || lesson.category === 'levels'
+      ).length,
+      indicators: zerodhaTechnicalAnalysisTrack.lessons.filter((lesson) => lesson.category === 'indicators').length,
+      execution: zerodhaTechnicalAnalysisTrack.lessons.filter((lesson) => lesson.category === 'execution').length,
+    };
+  }, []);
+
+  const moduleProgressFromCompletedSet = useCallback((completedSet: Set<string>) => {
+    let foundation = 0;
+    let patternsAndLevels = 0;
+    let indicators = 0;
+    let execution = 0;
+
+    completedSet.forEach((lessonId) => {
+      const lesson = lessonById.get(lessonId);
+      if (!lesson) return;
+      if (lesson.category === 'foundation') foundation += 1;
+      if (lesson.category === 'patterns' || lesson.category === 'levels') patternsAndLevels += 1;
+      if (lesson.category === 'indicators') indicators += 1;
+      if (lesson.category === 'execution') execution += 1;
+    });
+
+    const ratio = (value: number, total: number) => (total > 0 ? Math.round((value / total) * 100) : 0);
+
+    return {
+      foundations: ratio(foundation, categoryTotals.foundation),
+      patterns: ratio(patternsAndLevels, categoryTotals.patternsAndLevels),
+      indicators: ratio(indicators, categoryTotals.indicators),
+      execution: ratio(execution, categoryTotals.execution),
+    };
+  }, [categoryTotals, lessonById]);
+
+  const coverage = useMemo(() => {
+    const progress = moduleProgressFromCompletedSet(completedLessons);
+    return [
+      { label: 'Foundations', value: progress.foundations },
+      { label: 'Patterns', value: progress.patterns },
+      { label: 'Indicators', value: progress.indicators },
+      { label: 'Execution', value: progress.execution },
+    ];
+  }, [completedLessons, moduleProgressFromCompletedSet]);
+
+  useEffect(() => {
+    if (!progressDoc) return;
+
+    const lessonProgress = progressDoc.lessonProgress || {};
+    const completed = new Set<string>();
+    const draftScores: Record<string, string> = {};
+
+    Object.entries(lessonProgress).forEach(([lessonId, progress]) => {
+      if (progress?.completed) completed.add(lessonId);
+      if (typeof progress?.quizScore === 'number') draftScores[lessonId] = String(progress.quizScore);
+    });
+
+    setCompletedLessons(completed);
+    setQuizDrafts((current) => ({ ...draftScores, ...current }));
+
+    if (!personalizationHydratedRef.current && progressDoc.personalization) {
+      if (progressDoc.personalization.progressSummary) {
+        setProgressSummary(progressDoc.personalization.progressSummary);
+      }
+      if (Array.isArray(progressDoc.personalization.weaknesses)) {
+        setWeaknessesText(progressDoc.personalization.weaknesses.join(', '));
+      }
+      if (progressDoc.personalization.learningStyle) {
+        setLearningStyle(progressDoc.personalization.learningStyle);
+      }
+      personalizationHydratedRef.current = true;
+    }
+  }, [progressDoc]);
+
+  const handleToggleLessonCompletion = async (lessonId: string) => {
+    if (!db || !user) {
+      setSaveFeedback('Sign in to save learning progress.');
+      return;
+    }
+
+    const nextCompleted = new Set(completedLessons);
+    const markCompleted = !nextCompleted.has(lessonId);
+
+    if (markCompleted) nextCompleted.add(lessonId);
+    else nextCompleted.delete(lessonId);
+
+    setCompletedLessons(nextCompleted);
+    setSavingLessonId(lessonId);
+    setSaveFeedback('');
+
+    try {
+      await setLessonCompletion(db, user.uid, lessonId, markCompleted, moduleProgressFromCompletedSet(nextCompleted));
+      setSaveFeedback(markCompleted ? 'Lesson marked complete.' : 'Lesson marked pending.');
+    } catch {
+      setCompletedLessons(new Set(completedLessons));
+      setSaveFeedback('Unable to save lesson completion right now.');
+    } finally {
+      setSavingLessonId(null);
+    }
+  };
+
+  const handleSaveQuiz = async (lessonId: string) => {
+    if (!db || !user) {
+      setSaveFeedback('Sign in to save quiz progress.');
+      return;
+    }
+
+    const raw = quizDrafts[lessonId] ?? '';
+    const parsed = Number(raw);
+
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+      setSaveFeedback('Quiz score must be between 0 and 100.');
+      return;
+    }
+
+    const attempts = progressDoc?.lessonProgress?.[lessonId]?.quizAttempts ?? 0;
+
+    setSavingQuizId(lessonId);
+    setSaveFeedback('');
+
+    try {
+      await saveQuizScore(
+        db,
+        user.uid,
+        lessonId,
+        parsed,
+        attempts,
+        moduleProgressFromCompletedSet(completedLessons)
+      );
+      setSaveFeedback('Quiz score saved.');
+    } catch {
+      setSaveFeedback('Unable to save quiz score right now.');
+    } finally {
+      setSavingQuizId(null);
+    }
+  };
+
+  const handleGeneratePlan = async () => {
+    setPersonalizationError('');
+    setIsGeneratingPlan(true);
+
+    try {
+      const weaknesses = weaknessesText
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      if (db && user) {
+        await savePersonalizationContext(
+          db,
+          user.uid,
+          {
+            progressSummary,
+            weaknesses,
+            learningStyle,
+          },
+          moduleProgressFromCompletedSet(completedLessons)
+        );
+      }
+
+      const response = await fetch('/api/learning/personalize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userProgress: progressSummary,
+          identifiedWeaknesses: weaknesses,
+          learningStyle,
+        }),
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Unable to generate a personalized learning plan.');
+      }
+
+      setPersonalizedResult(payload as PersonalizedLearningResult);
+    } catch (error: any) {
+      setPersonalizationError(error?.message || 'Unable to generate a personalized learning plan.');
+    } finally {
+      setIsGeneratingPlan(false);
+    }
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <SidebarNav />
@@ -162,6 +399,15 @@ export default function LearningPage() {
                       ))}
                     </div>
                   </div>
+
+                  <div className="rounded-2xl border border-primary/15 bg-background/40 p-4">
+                    <p className="font-headline text-xs uppercase tracking-[0.28em] text-muted-foreground">
+                      Completed Lessons
+                    </p>
+                    <p className="mt-2 text-2xl font-headline text-white">
+                      {completedLessons.size} / {zerodhaTechnicalAnalysisTrack.lessonsCount}
+                    </p>
+                  </div>
                 </CardHeader>
               </Card>
 
@@ -223,6 +469,50 @@ export default function LearningPage() {
                           </Button>
                         </div>
                       </div>
+
+                      <div className="mt-4 grid gap-3 rounded-2xl border border-primary/10 bg-background/40 p-4 md:grid-cols-[1fr_auto]">
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">
+                            Status: <span className="font-semibold text-white">{completedLessons.has(lesson.id) ? 'Completed' : 'Pending'}</span>
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={quizDrafts[lesson.id] ?? ''}
+                              onChange={(event) =>
+                                setQuizDrafts((current) => ({
+                                  ...current,
+                                  [lesson.id]: event.target.value,
+                                }))
+                              }
+                              className="h-9 w-36 bg-white/5 border-white/10"
+                              placeholder="Quiz score"
+                            />
+                            <Button
+                              variant="secondary"
+                              className="h-9"
+                              onClick={() => void handleSaveQuiz(lesson.id)}
+                              disabled={savingQuizId === lesson.id}
+                            >
+                              {savingQuizId === lesson.id ? 'Saving...' : 'Save Quiz'}
+                            </Button>
+                          </div>
+                        </div>
+
+                        <Button
+                          onClick={() => void handleToggleLessonCompletion(lesson.id)}
+                          disabled={savingLessonId === lesson.id}
+                          className="h-9"
+                        >
+                          {savingLessonId === lesson.id
+                            ? 'Saving...'
+                            : completedLessons.has(lesson.id)
+                            ? 'Mark Pending'
+                            : 'Mark Completed'}
+                        </Button>
+                      </div>
                     </article>
                   ))}
                 </CardContent>
@@ -230,6 +520,93 @@ export default function LearningPage() {
             </div>
 
             <aside className="space-y-6">
+              {saveFeedback ? (
+                <p className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-xs text-primary">
+                  {saveFeedback}
+                </p>
+              ) : null}
+
+              <Card className="border-primary/20 bg-card/70 backdrop-blur">
+                <CardHeader className="border-b border-primary/10">
+                  <CardTitle className="flex items-center gap-3 font-headline text-2xl text-white">
+                    <BrainCircuit className="h-5 w-5 text-primary" />
+                    AI Personalized Plan
+                  </CardTitle>
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    Convert your study status into a targeted module sequence generated by the personalization flow.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-6">
+                  <div className="space-y-2">
+                    <p className="font-headline text-xs uppercase tracking-[0.28em] text-muted-foreground">Progress Summary</p>
+                    <Textarea
+                      value={progressSummary}
+                      onChange={(event) => setProgressSummary(event.target.value)}
+                      className="min-h-24 bg-white/5 border-white/10"
+                      placeholder="Describe your current progress and quiz outcomes"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="font-headline text-xs uppercase tracking-[0.28em] text-muted-foreground">Weaknesses (comma-separated)</p>
+                    <Input
+                      value={weaknessesText}
+                      onChange={(event) => setWeaknessesText(event.target.value)}
+                      className="bg-white/5 border-white/10"
+                      placeholder="Candlestick confirmation, Risk discipline, Indicator context"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="font-headline text-xs uppercase tracking-[0.28em] text-muted-foreground">Preferred Learning Style</p>
+                    <Select value={learningStyle} onValueChange={setLearningStyle}>
+                      <SelectTrigger className="bg-white/5 border-white/10">
+                        <SelectValue placeholder="Choose learning style" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="visual">Visual</SelectItem>
+                        <SelectItem value="auditory">Auditory</SelectItem>
+                        <SelectItem value="kinesthetic">Kinesthetic</SelectItem>
+                        <SelectItem value="text-based">Text-based</SelectItem>
+                        <SelectItem value="interactive">Interactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Button className="w-full" onClick={handleGeneratePlan} disabled={isGeneratingPlan || !progressSummary.trim()}>
+                    {isGeneratingPlan ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Generating Plan...
+                      </>
+                    ) : (
+                      'Generate Personalized Plan'
+                    )}
+                  </Button>
+
+                  {personalizationError ? (
+                    <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                      {personalizationError}
+                    </p>
+                  ) : null}
+
+                  {personalizedResult ? (
+                    <div className="space-y-3 rounded-2xl border border-primary/15 bg-background/40 p-4">
+                      <p className="font-headline text-xs uppercase tracking-[0.28em] text-primary">AI Recommendation</p>
+                      <p className="text-sm leading-6 text-muted-foreground">{personalizedResult.rationale}</p>
+                      <div className="space-y-2">
+                        {personalizedResult.learningPath.map((item, index) => (
+                          <div key={`${item.module}-${index}`} className="rounded-xl border border-primary/10 bg-background/50 p-3">
+                            <p className="font-headline text-sm uppercase tracking-[0.16em] text-white">{index + 1}. {item.module}</p>
+                            <p className="mt-1 text-sm leading-6 text-muted-foreground">{item.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+
               <Card className="border-primary/20 bg-card/70 backdrop-blur">
                 <CardHeader className="border-b border-primary/10">
                   <CardTitle className="flex items-center gap-3 font-headline text-2xl text-white">

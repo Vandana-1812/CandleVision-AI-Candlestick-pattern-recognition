@@ -1,17 +1,58 @@
 
 "use client"
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import { SidebarNav } from '@/components/dashboard/SidebarNav';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useUser, useFirestore, useCollection } from '@/firebase';
-import { collection, query, orderBy, limit, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import { Target, TrendingUp, ShieldCheck, Activity, BrainCircuit } from 'lucide-react';
+
+function getSignalTimestampMs(raw: unknown): number | null {
+  if (!raw) return null;
+  const maybeTimestamp = raw as { toDate?: () => Date; seconds?: number };
+  if (typeof maybeTimestamp.toDate === 'function') {
+    const date = maybeTimestamp.toDate();
+    return date instanceof Date ? date.getTime() : null;
+  }
+  if (typeof maybeTimestamp.seconds === 'number') {
+    return maybeTimestamp.seconds * 1000;
+  }
+  if (typeof raw === 'string') {
+    const parsed = Date.parse(raw);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  if (raw instanceof Date) {
+    return raw.getTime();
+  }
+  return null;
+}
+
+type PendingSignalPayload = {
+  id: string;
+  symbol: string;
+  signal: string;
+  entryPrice: number;
+  entryTimeMs: number;
+};
+
+type VerificationResult = {
+  signalId: string;
+  isVerified: boolean;
+  predictionResult: 'correct' | 'incorrect';
+  profitLoss: number;
+  exitPrice: number;
+  evaluationWindowHours: number;
+  exitLogic: string;
+  verificationBasis: string;
+  resultSource: string;
+};
 
 export default function PerformancePage() {
   const { user } = useUser();
   const db = useFirestore();
+  const inFlightVerification = useRef<Set<string>>(new Set());
 
   const signalsQuery = useMemo(() => {
     if (!db || !user) return null;
@@ -20,27 +61,61 @@ export default function PerformancePage() {
 
   const { data: signals, loading } = useCollection(signalsQuery);
 
-  // Simple client-side backtesting/verification logic for existing signals
+  // Verification computation is performed by the backend API route for consistency.
   useEffect(() => {
     if (!signals || !db || !user) return;
 
-    // In a real app, this would be a cloud function.
-    // For the prototype, we simulate verification of pending signals.
-    signals.forEach(async (signal: any) => {
-      if (signal.predictionResult === 'pending') {
-        // Mocking verification after a "delay"
-        const isCorrect = Math.random() > 0.4; // 60% win rate mock
-        const pnl = isCorrect ? Math.random() * 200 : -Math.random() * 150;
-        
-        const signalRef = doc(db, 'users', user.uid, 'signals', signal.id);
-        updateDoc(signalRef, {
-          isVerified: true,
-          predictionResult: isCorrect ? 'correct' : 'incorrect',
-          profitLoss: pnl,
-          exitPrice: signal.entryPrice + (pnl / 10) // simulated
+    const verifyPendingSignals = async () => {
+      const pendingSignals: PendingSignalPayload[] = signals
+        .filter((signal: any) => signal.predictionResult === 'pending' && signal.entryPrice != null && signal.symbol)
+        .map((signal: any) => ({
+          id: String(signal.id),
+          symbol: String(signal.symbol),
+          signal: String(signal.signal || ''),
+          entryPrice: Number(signal.entryPrice),
+          entryTimeMs: getSignalTimestampMs(signal.timestamp) ?? 0,
+        }))
+        .filter((signal) => signal.id && signal.symbol && Number.isFinite(signal.entryPrice) && signal.entryPrice > 0 && signal.entryTimeMs > 0)
+        .filter((signal) => !inFlightVerification.current.has(signal.id));
+
+      if (pendingSignals.length === 0) return;
+
+      pendingSignals.forEach((signal) => inFlightVerification.current.add(signal.id));
+
+      try {
+        const response = await fetch('/api/performance/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ signals: pendingSignals }),
         });
+
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as { results?: VerificationResult[] };
+        const results = Array.isArray(payload.results) ? payload.results : [];
+
+        await Promise.all(
+          results.map(async (result) => {
+            const signalRef = doc(db, 'users', user.uid, 'signals', result.signalId);
+            await updateDoc(signalRef, {
+              isVerified: result.isVerified,
+              predictionResult: result.predictionResult,
+              profitLoss: result.profitLoss,
+              exitPrice: result.exitPrice,
+              evaluationWindowHours: result.evaluationWindowHours,
+              exitLogic: result.exitLogic,
+              verificationBasis: result.verificationBasis,
+              resultSource: result.resultSource,
+              verifiedAt: serverTimestamp(),
+            });
+          })
+        );
+      } finally {
+        pendingSignals.forEach((signal) => inFlightVerification.current.delete(signal.id));
       }
-    });
+    };
+
+    void verifyPendingSignals();
   }, [signals, db, user]);
 
   const stats = useMemo(() => {
@@ -136,7 +211,7 @@ export default function PerformancePage() {
           <Card className="holographic-card p-6 min-h-[400px]">
             <CardTitle className="font-headline text-sm uppercase mb-6 flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-primary" />
-              Equity Curve (Simulated)
+              Equity Curve
             </CardTitle>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">

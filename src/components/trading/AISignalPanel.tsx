@@ -18,9 +18,9 @@ import {
 import { generateTradingSignals } from '@/ai/flows/generate-trading-signals';
 import { explainTradingSignals } from '@/ai/flows/explain-trading-signals';
 import { OHLC, calculateRSI, calculateMACD, calculateBollingerBands } from '@/lib/market-data';
+import { saveSignalRecord } from '@/lib/signal-repository';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 interface AISignalPanelProps {
   marketData: OHLC[];
@@ -87,17 +87,12 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
 
       // Step 2: Store Signal for Verification
       if (user && db) {
-        const signalsRef = collection(db, 'users', user.uid, 'signals');
-        addDoc(signalsRef, {
+        await saveSignalRecord(db, user.uid, {
           symbol,
-          timestamp: serverTimestamp(),
           signal: result.signal,
           entryPrice: currentPrice,
           confidenceScore: result.confidenceScore,
           reasoning: result.reasoning,
-          isVerified: false,
-          predictionResult: 'pending',
-          assetSymbol: symbol
         });
       }
 

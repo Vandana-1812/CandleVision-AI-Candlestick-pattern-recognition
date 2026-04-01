@@ -2,7 +2,6 @@
 "use client";
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, BookOpen, BrainCircuit, ShieldCheck, Sparkles, Trophy, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -83,52 +82,6 @@ const footerNetwork = [
 const footerLegalLinks = ['Conditions of Use', 'Privacy Notice', 'Interest-Based Alerts'];
 
 export default function LoginPage() {
-  const [cursor, setCursor] = useState({ x: -100, y: -100 });
-  const cursorTargetRef = useRef({ x: -100, y: -100 });
-  const cursorRenderRef = useRef({ x: -100, y: -100 });
-  const trailRenderRef = useRef(Array.from({ length: 12 }, () => ({ x: -100, y: -100 })));
-  const [trail, setTrail] = useState(Array.from({ length: 12 }, () => ({ x: -100, y: -100 })));
-  const [cursorActive, setCursorActive] = useState(false);
-
-  useEffect(() => {
-    let frameId = 0;
-
-    const animateCursor = () => {
-      const target = cursorTargetRef.current;
-      const render = cursorRenderRef.current;
-
-      render.x += (target.x - render.x) * 0.2;
-      render.y += (target.y - render.y) * 0.2;
-
-      setCursor({ x: render.x, y: render.y });
-
-      const points = trailRenderRef.current;
-      points[0] = { x: render.x, y: render.y };
-      for (let i = 1; i < points.length; i += 1) {
-        points[i] = {
-          x: points[i].x + (points[i - 1].x - points[i].x) * 0.34,
-          y: points[i].y + (points[i - 1].y - points[i].y) * 0.34,
-        };
-      }
-      setTrail([...points]);
-
-      frameId = requestAnimationFrame(animateCursor);
-    };
-
-    const handleMove = (event: MouseEvent) => {
-      cursorTargetRef.current = { x: event.clientX, y: event.clientY };
-      const target = event.target as HTMLElement | null;
-      setCursorActive(Boolean(target?.closest('a,button,[data-cursor="active"]')));
-    };
-
-    frameId = requestAnimationFrame(animateCursor);
-    window.addEventListener('mousemove', handleMove);
-    return () => {
-      cancelAnimationFrame(frameId);
-      window.removeEventListener('mousemove', handleMove);
-    };
-  }, []);
-
   return (
     <div className="guest-dashboard relative min-h-screen overflow-hidden bg-background text-foreground">
       <div className="guest-noise pointer-events-none absolute inset-0" />
@@ -136,21 +89,6 @@ export default function LoginPage() {
       <div className="guest-orb guest-orb-a" />
       <div className="guest-orb guest-orb-b" />
       <div className="guest-orb guest-orb-c" />
-
-      {trail.map((point, index) => (
-        <div
-          key={index}
-          className="guest-cursor-trail hidden md:block"
-          style={{
-            transform: `translate3d(${point.x - 4}px, ${point.y - 4}px, 0) scale(${1 - index * 0.055})`,
-            opacity: `${Math.max(0.06, 0.84 - index * 0.07)}`,
-          }}
-        />
-      ))}
-      <div
-        className={`guest-cursor-dot hidden md:block ${cursorActive ? 'guest-cursor-dot-active' : ''}`}
-        style={{ transform: `translate3d(${cursor.x - 5}px, ${cursor.y - 5}px, 0)` }}
-      />
 
       <main className="relative z-10 mx-auto flex w-full max-w-7xl flex-col gap-16 px-6 pb-24 pt-8 md:gap-20 md:px-10 md:pt-12">
         <header className="flex flex-wrap items-center justify-between gap-4">

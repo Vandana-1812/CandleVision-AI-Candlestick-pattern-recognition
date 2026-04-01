@@ -13,12 +13,14 @@ import { useToast } from '@/hooks/use-toast';
 import { getChallengeById } from '@/lib/competition-data';
 import { CompetitionFeedback, evaluateCompetitionAnswer } from '@/lib/competition-feedback';
 import { useCompetitionRoster } from '@/hooks/use-competition-roster';
+import { useUser } from '@/firebase';
 import { ArrowLeft, CheckCircle2, ShieldCheck, Target, Timer, Trophy, Users, Wallet } from 'lucide-react';
 
 export default function CompetitionChallengePage() {
   const params = useParams<{ challengeId: string }>();
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useUser();
   const { hydrated, isJoined, joinChallenge } = useCompetitionRoster();
   const challengeId = typeof params.challengeId === 'string' ? params.challengeId : '';
   const challenge = getChallengeById(challengeId);
@@ -97,13 +99,43 @@ export default function CompetitionChallengePage() {
       return;
     }
 
-    const nextFeedback = evaluateCompetitionAnswer(challenge, submission);
-    setFeedback(nextFeedback);
-    setSubmitted(true);
-    toast({
-      title: 'Answer submitted',
-      description: `Feedback ready: ${nextFeedback.verdict.toLowerCase()} (${nextFeedback.score}/100).`,
-    });
+    void (async () => {
+      try {
+        const response = await fetch('/api/competitions/submit', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            challengeId: challenge.id,
+            answer: submission,
+            userId: user?.uid || 'anonymous-user',
+            operator: user?.displayName || user?.email || 'You',
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Submission API failed');
+        }
+
+        const payload = (await response.json()) as { feedback: CompetitionFeedback; persistence?: string };
+        setFeedback(payload.feedback);
+        setSubmitted(true);
+
+        toast({
+          title: 'Answer submitted',
+          description: `Feedback ready: ${payload.feedback.verdict.toLowerCase()} (${payload.feedback.score}/100).`,
+        });
+      } catch {
+        const nextFeedback = evaluateCompetitionAnswer(challenge, submission);
+        setFeedback(nextFeedback);
+        setSubmitted(true);
+        toast({
+          title: 'Answer submitted (local fallback)',
+          description: `Feedback ready: ${nextFeedback.verdict.toLowerCase()} (${nextFeedback.score}/100).`,
+        });
+      }
+    })();
   };
 
   return (
