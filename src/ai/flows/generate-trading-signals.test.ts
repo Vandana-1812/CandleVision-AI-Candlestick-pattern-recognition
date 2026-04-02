@@ -1,3 +1,52 @@
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/ai/genkit', () => ({
+  ai: {
+    definePrompt: () => async ({ technicalDataJSON }: { technicalDataJSON: string }) => {
+      const parsed = JSON.parse(technicalDataJSON) as {
+        indicators?: {
+          rsi?: number;
+          macd?: {
+            histogram?: number;
+          };
+        };
+      };
+
+      const rsi = parsed.indicators?.rsi;
+      const histogram = parsed.indicators?.macd?.histogram;
+
+      if (typeof rsi === 'number' && typeof histogram === 'number' && rsi >= 70 && histogram > 0) {
+        return {
+          output: {
+            signal: 'Buy' as const,
+            confidenceScore: 85,
+            reasoning: 'Bullish momentum and strong RSI.',
+          },
+        };
+      }
+
+      if (typeof rsi === 'number' && typeof histogram === 'number' && rsi <= 30 && histogram < 0) {
+        return {
+          output: {
+            signal: 'Sell' as const,
+            confidenceScore: 84,
+            reasoning: 'Bearish momentum and weak RSI.',
+          },
+        };
+      }
+
+      return {
+        output: {
+          signal: 'Hold' as const,
+          confidenceScore: 62,
+          reasoning: 'Mixed or neutral indicators.',
+        },
+      };
+    },
+    defineFlow: (_config: unknown, impl: (input: unknown) => Promise<unknown>) => impl,
+  },
+}));
+
 import { generateTradingSignals, GenerateTradingSignalInput } from './generate-trading-signals';
 
 describe('generateTradingSignals', () => {
@@ -30,7 +79,7 @@ describe('generateTradingSignals', () => {
 
     expect(result.signal).toBe('Buy');
     expect(result.confidenceScore).toBeGreaterThan(70);
-    expect(result.reasoning).toBeDefined();
+    expect(result.reasoning).toBeTruthy();
   });
 
   it('should return a sell signal with high confidence', async () => {
@@ -62,7 +111,7 @@ describe('generateTradingSignals', () => {
 
     expect(result.signal).toBe('Sell');
     expect(result.confidenceScore).toBeGreaterThan(70);
-    expect(result.reasoning).toBeDefined();
+    expect(result.reasoning).toBeTruthy();
   });
 
   it('should return a hold signal when indicators are neutral', async () => {
@@ -94,6 +143,6 @@ describe('generateTradingSignals', () => {
 
     expect(result.signal).toBe('Hold');
     expect(result.confidenceScore).toBeDefined();
-    expect(result.reasoning).toBeDefined();
+    expect(result.reasoning).toBeTruthy();
   });
 });

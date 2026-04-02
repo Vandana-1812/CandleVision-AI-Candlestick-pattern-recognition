@@ -1,0 +1,29 @@
+name: Verification Cron
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  verify-pending-signals:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger server-side pending verification
+        env:
+          VERIFICATION_CRON_URL: ${{ secrets.VERIFICATION_CRON_URL }}
+          VERIFICATION_CRON_SECRET: ${{ secrets.VERIFICATION_CRON_SECRET }}
+        run: |
+          if [ -z "$VERIFICATION_CRON_URL" ]; then
+            echo "VERIFICATION_CRON_URL is not configured; skipping trigger."
+            exit 0
+          fi
+
+          if [ -n "$VERIFICATION_CRON_SECRET" ]; then
+            curl -sS -X POST "$VERIFICATION_CRON_URL" \
+              -H "Content-Type: application/json" \
+              -H "x-cron-secret: $VERIFICATION_CRON_SECRET"
+          else
+            curl -sS -X POST "$VERIFICATION_CRON_URL" \
+              -H "Content-Type: application/json"
+          fi

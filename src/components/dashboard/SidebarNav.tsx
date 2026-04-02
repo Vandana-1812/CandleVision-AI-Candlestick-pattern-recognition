@@ -24,6 +24,7 @@ import { useRouter } from 'next/navigation';
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
   { icon: LineChart, label: 'AI Performance', href: '/performance' },
+  { icon: BarChart3, label: 'Analytics', href: '/analytics' },
   { icon: PlayCircle, label: 'Market Replay', href: '/replay' },
   { icon: GraduationCap, label: 'Learning Hub', href: '/learning' },
   { icon: Trophy, label: 'Competitions', href: '/competitions' },
@@ -86,6 +87,7 @@ export const SidebarNav: React.FC = () => {
         <button 
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 font-headline text-xs uppercase tracking-wider text-muted-foreground hover:bg-destructive/10 hover:text-destructive border border-transparent hover:border-destructive/20"
+          suppressHydrationWarning
         >
           <LogOut className="w-4 h-4" />
           Sign Out Terminal

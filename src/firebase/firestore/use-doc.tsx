@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { errorEmitter } from '../error-emitter';
 import { FirestorePermissionError } from '../errors';
+import { reportClientError } from '@/lib/telemetry';
 
 export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
   const [data, setData] = useState<T | null>(null);
@@ -34,6 +35,10 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
           operation: 'get',
         });
         errorEmitter.emit('permission-error', permissionError);
+        reportClientError('firestore.useDoc', serverError, {
+          path: docRef.path,
+          operation: 'get',
+        });
         setError(serverError);
         setLoading(false);
       }

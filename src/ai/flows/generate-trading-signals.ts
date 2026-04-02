@@ -69,7 +69,7 @@ const PromptInputSchema = z.object({
 
 const prompt = ai.definePrompt({
   name: 'generateTradingSignalPrompt',
-  model: 'googleai/gemini-2.0-flash',
+  model: 'googleai/gemini-2.5-flash',
   input: { schema: PromptInputSchema },
   output: { schema: GenerateTradingSignalOutputSchema },
   config: {

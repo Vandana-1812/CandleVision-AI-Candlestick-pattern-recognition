@@ -1,23 +1,22 @@
-
 "use client"
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Sparkles, 
-  BrainCircuit, 
-  Info, 
-  CheckCircle2, 
-  Loader2, 
+import {
+  Sparkles,
+  BrainCircuit,
+  Info,
+  CheckCircle2,
+  Loader2,
   Cpu
 } from 'lucide-react';
 import { explainTradingSignals } from '@/ai/flows/explain-trading-signals';
 import { OHLC, calculateRSI, calculateMACD, calculateBollingerBands } from '@/lib/market-data';
+import { saveSignalRecord } from '@/lib/signal-repository';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 interface AISignalPanelProps {
   marketData: OHLC[];
@@ -46,15 +45,13 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
       toast({ title: "Insufficient Data", description: "Wait for market stream to initialize.", variant: "destructive" });
       return;
     }
-    
+
     setLoading(true);
     setSignal(null);
     setExplanation(null);
-    
+
     try {
       const currentPrice = marketData[marketData.length - 1].close;
-
-      // Calculate real technical indicators from market data
       const rsiValues = calculateRSI(marketData);
       const macdValues = calculateMACD(marketData);
       const bbValues = calculateBollingerBands(marketData);
@@ -83,17 +80,12 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
       setSignal(result);
 
       if (user && db) {
-        const signalsRef = collection(db, 'users', user.uid, 'signals');
-        addDoc(signalsRef, {
+        await saveSignalRecord(db, user.uid, {
           symbol,
-          timestamp: serverTimestamp(),
           signal: result.signal,
           entryPrice: currentPrice,
           confidenceScore: result.confidenceScore,
           reasoning: result.reasoning,
-          isVerified: false,
-          predictionResult: 'pending',
-          assetSymbol: symbol,
           pattern: result.pattern,
         });
       }
@@ -135,8 +127,8 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
             </CardTitle>
             <CardDescription className="text-[10px] uppercase tracking-wider">Neural Analysis Engine Active</CardDescription>
           </div>
-          <Button 
-            onClick={getSignal} 
+          <Button
+            onClick={getSignal}
             disabled={loading || !marketData.length}
             className="bg-primary hover:bg-primary/80 text-white border-none shadow-[0_0_15px_rgba(42,90,159,0.5)] h-9 px-4 text-xs font-headline"
           >
@@ -171,8 +163,8 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
               <div className="p-4 rounded-xl bg-background/40 border border-white/5 space-y-1">
                 <p className="text-[10px] font-headline text-muted-foreground uppercase">Action</p>
                 <Badge className={`text-lg px-4 py-0 font-headline h-8 w-full justify-center ${
-                  signal.signal === 'Buy' ? 'bg-accent/20 text-accent border-accent/50' : 
-                  signal.signal === 'Sell' ? 'bg-destructive/20 text-destructive border-destructive/50' : 
+                  signal.signal === 'Buy' ? 'bg-accent/20 text-accent border-accent/50' :
+                  signal.signal === 'Sell' ? 'bg-destructive/20 text-destructive border-destructive/50' :
                   'bg-muted/20 text-muted-foreground border-white/10'
                 }`}>
                   {signal.signal}
