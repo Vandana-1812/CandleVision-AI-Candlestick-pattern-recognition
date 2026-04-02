@@ -1,16 +1,20 @@
 "use client"
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { SidebarNav } from '@/components/dashboard/SidebarNav';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart3, TrendingUp, Target, ShieldCheck } from 'lucide-react';
+import { BarChart3, TrendingUp, Target, ShieldCheck, BrainCircuit, Loader2 } from 'lucide-react';
 import { useUser, useFirestore, useCollection } from '@/firebase';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import type { TrainingReport } from '@/lib/training/types';
 
 export default function AnalyticsPage() {
   const { user } = useUser();
   const db = useFirestore();
+  const [trainingReport, setTrainingReport] = useState<TrainingReport | null>(null);
+  const [trainingLoading, setTrainingLoading] = useState(true);
+  const [trainingError, setTrainingError] = useState<string | null>(null);
 
   const signalsQuery = useMemo(() => {
     if (!db || !user) return null;
@@ -18,6 +22,39 @@ export default function AnalyticsPage() {
   }, [db, user]);
 
   const { data: signals } = useCollection(signalsQuery);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadTrainingReport = async () => {
+      setTrainingLoading(true);
+      setTrainingError(null);
+      try {
+        const response = await fetch('/api/training/nifty?interval=1h&range=1mo&horizonCandles=6&thresholdPct=0.35');
+        if (!response.ok) {
+          throw new Error(`Training request failed: ${response.status}`);
+        }
+
+        const payload = await response.json();
+        if (!cancelled) {
+          setTrainingReport(payload);
+        }
+      } catch (error: any) {
+        if (!cancelled) {
+          setTrainingError(error?.message || 'Unable to load NIFTY training report');
+        }
+      } finally {
+        if (!cancelled) {
+          setTrainingLoading(false);
+        }
+      }
+    };
+
+    loadTrainingReport();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const metrics = useMemo(() => {
     if (!signals || signals.length === 0) {
@@ -29,17 +66,15 @@ export default function AnalyticsPage() {
 
     const pnls: number[] = verified.map((s: any) => s.profitLoss as number);
 
-    // Sharpe Ratio (annualised assuming ~8760 hourly signal periods per year)
     const mean = pnls.reduce((a, b) => a + b, 0) / pnls.length;
     const variance = pnls.reduce((acc, v) => acc + (v - mean) ** 2, 0) / pnls.length;
     const std = Math.sqrt(variance);
     const sharpe = std > 0 ? parseFloat(((mean / std) * Math.sqrt(8760)).toFixed(2)) : 0;
 
-    // Profit Factor = gross profit / gross loss
     const grossProfit = pnls.filter((v) => v > 0).reduce((a, b) => a + b, 0);
     const grossLoss = Math.abs(pnls.filter((v) => v < 0).reduce((a, b) => a + b, 0));
     const profitFactor = grossLoss > 0 ? parseFloat((grossProfit / grossLoss).toFixed(2)) : grossProfit > 0 ? Infinity : 0;
-    // Max drawdown
+
     let balance = 10000;
     let peak = balance;
     let maxDrawdown = 0;
@@ -50,7 +85,6 @@ export default function AnalyticsPage() {
       if (dd > maxDrawdown) maxDrawdown = dd;
     }
 
-    // Expectancy = (win rate × avg win) - (loss rate × avg loss)
     const wins = pnls.filter((v) => v > 0);
     const losses = pnls.filter((v) => v < 0);
     const winRate = wins.length / pnls.length;
@@ -101,7 +135,7 @@ export default function AnalyticsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold font-headline text-accent">
-                {metrics.profitFactor === null ? '∞' : metrics.profitFactor}
+                {metrics.profitFactor === null ? '8' : metrics.profitFactor}
               </div>
             </CardContent>
           </Card>
@@ -147,6 +181,68 @@ export default function AnalyticsPage() {
               Generate signals to see your performance curve.
             </div>
           )}
+        </Card>
+
+        <Card className="holographic-card p-6 min-h-[400px]">
+          <CardTitle className="font-headline text-lg glow-blue mb-6 flex items-center gap-2">
+            <BrainCircuit className="w-5 h-5 text-primary" />
+            NIFTY TRAINING MODULE
+          </CardTitle>
+          {trainingLoading ? (
+            <div className="h-[300px] flex items-center justify-center">
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+            </div>
+          ) : trainingError ? (
+            <div className="h-[300px] flex items-center justify-center text-center text-sm text-destructive">
+              {trainingError}
+            </div>
+          ) : trainingReport ? (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-xl border border-white/10 p-4 bg-background/40">
+                  <p className="text-[10px] uppercase text-muted-foreground font-headline">Train Accuracy</p>
+                  <p className="text-2xl font-headline">{(trainingReport.trainMetrics.accuracy * 100).toFixed(1)}%</p>
+                </div>
+                <div className="rounded-xl border border-white/10 p-4 bg-background/40">
+                  <p className="text-[10px] uppercase text-muted-foreground font-headline">Test Accuracy</p>
+                  <p className="text-2xl font-headline text-accent">{(trainingReport.testMetrics.accuracy * 100).toFixed(1)}%</p>
+                </div>
+                <div className="rounded-xl border border-white/10 p-4 bg-background/40">
+                  <p className="text-[10px] uppercase text-muted-foreground font-headline">Macro F1</p>
+                  <p className="text-2xl font-headline">{trainingReport.testMetrics.macroF1.toFixed(2)}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 p-4 bg-background/40">
+                  <p className="text-[10px] uppercase text-muted-foreground font-headline">Latest Model Bias</p>
+                  <p className="text-2xl font-headline text-primary">{trainingReport.recentInference.predictedLabel}</p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-white/10 p-4 bg-background/30 space-y-2">
+                <p className="text-[10px] uppercase text-muted-foreground font-headline">Dataset</p>
+                <p className="text-sm text-muted-foreground">
+                  {trainingReport.dataset.examples} examples from {trainingReport.dataset.candles} NIFTY candles, latest close {trainingReport.dataset.latestClose}.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Buy {Math.round(trainingReport.recentInference.probabilities.Buy * 100)}%, Hold {Math.round(trainingReport.recentInference.probabilities.Hold * 100)}%, Sell {Math.round(trainingReport.recentInference.probabilities.Sell * 100)}%.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {trainingReport.featureImportance.map((group) => (
+                  <div key={group.className} className="rounded-xl border border-white/10 p-4 bg-background/30 space-y-3">
+                    <p className="text-[10px] uppercase text-muted-foreground font-headline">{group.className} Drivers</p>
+                    <div className="space-y-1">
+                      {group.strongestPositive.slice(0, 3).map((item) => (
+                        <p key={`${group.className}-${item.feature}`} className="text-sm text-muted-foreground">
+                          {item.feature}: {item.weight.toFixed(3)}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </Card>
       </main>
     </div>

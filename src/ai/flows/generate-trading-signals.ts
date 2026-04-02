@@ -136,8 +136,6 @@ const generateTradingSignalFlow = ai.defineFlow(
 
       console.error("Trading signal AI failed:", error);
 
-      // Only return fallback for transient / empty-response errors.
-      // Re-throw config, auth, or quota errors so they surface properly.
       if (error instanceof Error && error.message === 'AI returned empty response') {
         return {
           signal: "Hold" as const,
