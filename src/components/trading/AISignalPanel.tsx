@@ -10,12 +10,9 @@ import {
   BrainCircuit, 
   Info, 
   CheckCircle2, 
-  AlertTriangle, 
   Loader2, 
-  Cpu,
-  History
+  Cpu
 } from 'lucide-react';
-import { generateTradingSignals } from '@/ai/flows/generate-trading-signals';
 import { explainTradingSignals } from '@/ai/flows/explain-trading-signals';
 import { OHLC, calculateRSI, calculateMACD, calculateBollingerBands } from '@/lib/market-data';
 import { useToast } from '@/hooks/use-toast';
@@ -27,9 +24,18 @@ interface AISignalPanelProps {
   symbol: string;
 }
 
+interface ModelSignalResponse {
+  stock: string;
+  pattern: string;
+  confidence: number;
+  confidenceScore: number;
+  signal: 'Buy' | 'Sell' | 'Hold';
+  reasoning: string;
+}
+
 export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol }) => {
   const [loading, setLoading] = useState(false);
-  const [signal, setSignal] = useState<any>(null);
+  const [signal, setSignal] = useState<ModelSignalResponse | null>(null);
   const [explanation, setExplanation] = useState<any>(null);
   const { user } = useUser();
   const db = useFirestore();
@@ -63,29 +69,19 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
           ? 'Bearish'
           : 'Neutral';
 
-      // Step 1: Generate Raw Signal
-      const result = await generateTradingSignals({
-        symbol,
-        interval: '1h',
-        ohlcData: marketData.slice(-50),
-        currentPrice,
-        technicalIndicators: {
-          rsi: currentRSI,
-          macd: {
-            line: currentMACD.macd,
-            signal: currentMACD.signal,
-            histogram: currentMACD.histogram,
-          },
-          bollingerBands: {
-            upper: currentBB.upper,
-            middle: currentBB.middle,
-            lower: currentBB.lower,
-          },
-        },
+      const response = await fetch('/api/ml-signal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol }),
       });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to run ML inference');
+      }
+
+      const result = payload as ModelSignalResponse;
       setSignal(result);
 
-      // Step 2: Store Signal for Verification
       if (user && db) {
         const signalsRef = collection(db, 'users', user.uid, 'signals');
         addDoc(signalsRef, {
@@ -97,22 +93,23 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
           reasoning: result.reasoning,
           isVerified: false,
           predictionResult: 'pending',
-          assetSymbol: symbol
+          assetSymbol: symbol,
+          pattern: result.pattern,
         });
       }
 
-      // Step 3: Generate Step-wise Explanation
       const exp = await explainTradingSignals({
         assetSymbol: symbol,
         signal: result.signal,
         confidenceScore: result.confidenceScore,
-        detectedPatterns: ['Local Support Test', 'Volume Spike'],
+        detectedPatterns: [result.pattern],
         technicalIndicators: [
           { name: 'RSI', value: currentRSI.toFixed(2) },
           { name: 'MACD Histogram', value: currentMACD.histogram.toFixed(4) },
           { name: 'Bollinger Band Width', value: (currentBB.upper - currentBB.lower).toFixed(4) },
         ],
         priceMomentum,
+        marketContext: result.reasoning,
       });
       setExplanation(exp);
     } catch (error: any) {
@@ -192,6 +189,11 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-background/40 border border-white/5 space-y-1">
+              <p className="text-[10px] font-headline text-muted-foreground uppercase">Detected Pattern</p>
+              <p className="font-headline text-base text-primary">{signal.pattern}</p>
             </div>
 
             <div className="space-y-4">

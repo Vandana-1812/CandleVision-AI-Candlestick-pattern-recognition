@@ -36,3 +36,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# python ml
+ml/__pycache__/
+ml/.yf_cache/
+ml/.torch/
+ml/dataset/
+ml/temp_chart*.png
