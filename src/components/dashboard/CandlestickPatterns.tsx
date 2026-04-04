@@ -169,13 +169,20 @@ const BearishMatHold = () => (
 interface PatternGridProps {
   title: string;
   color: 'green' | 'red';
+  action: 'BUY' | 'SELL';
   patterns: Array<{ name: string; component: React.FC }>;
 }
 
-const PatternCell: React.FC<{ pattern: { name: string; component: React.FC } }> = ({ pattern }) => {
+const PatternCell: React.FC<{ pattern: { name: string; component: React.FC }; action: 'BUY' | 'SELL' }> = ({ pattern, action }) => {
   const PatternComponent = pattern.component;
+  const actionColor = action === 'BUY' ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-rose-100 text-rose-700 border-rose-300';
+  const actionBgDot = action === 'BUY' ? 'bg-emerald-500' : 'bg-rose-500';
+  
   return (
-    <div className="flex flex-col items-center justify-center gap-1 p-2 min-h-[98px] bg-white border border-slate-200">
+    <div className="flex flex-col items-center justify-center gap-1 p-2 min-h-[98px] bg-white border border-slate-200 relative">
+      <div className={`absolute top-1 right-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${actionColor}`}>
+        {action}
+      </div>
       <div className="h-14 w-full flex items-center justify-center">
         <PatternComponent />
       </div>
@@ -186,18 +193,20 @@ const PatternCell: React.FC<{ pattern: { name: string; component: React.FC } }> 
   );
 };
 
-const PatternGrid: React.FC<PatternGridProps> = ({ title, color, patterns }) => {
+const PatternGrid: React.FC<PatternGridProps> = ({ title, color, action, patterns }) => {
   const headerBg = color === 'green' ? 'bg-emerald-500' : 'bg-rose-500';
+  const iconEmoji = action === 'BUY' ? '📈' : '📉';
 
   return (
     <div className="rounded-2xl border border-slate-300 bg-white shadow-sm overflow-hidden">
-      <div className={`px-3 py-2 text-sm font-semibold text-white ${headerBg}`}>
-        {title} Patterns
+      <div className={`px-3 py-2 text-sm font-semibold text-white ${headerBg} flex items-center gap-2`}>
+        <span>{iconEmoji}</span>
+        <span>{action} Signals</span>
       </div>
       <div className="grid grid-cols-2 gap-[1px] bg-slate-200">
         {patterns.map((pattern) => (
           <div key={pattern.name} className="bg-white">
-            <PatternCell pattern={pattern} />
+            <PatternCell pattern={pattern} action={action} />
           </div>
         ))}
       </div>
@@ -222,8 +231,8 @@ export const CandlestickPatterns: React.FC = () => {
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 w-full">
-      <PatternGrid title="Bullish" color="green" patterns={bullishPatterns} />
-      <PatternGrid title="Bearish" color="red" patterns={bearishPatterns} />
+      <PatternGrid title="Bullish" color="green" action="BUY" patterns={bullishPatterns} />
+      <PatternGrid title="Bearish" color="red" action="SELL" patterns={bearishPatterns} />
     </div>
   );
 };
