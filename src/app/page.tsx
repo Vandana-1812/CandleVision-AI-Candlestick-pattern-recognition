@@ -2,7 +2,6 @@
 "use client"
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { SidebarNav } from '@/components/dashboard/SidebarNav';
@@ -14,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { fetchMarketOHLC, MarketDataFetchMeta, OHLC } from '@/lib/market-data';
 import { LineChart, Search, Bell, User, Maximize2, Loader2, AlertCircle, Globe, Cpu } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { AuthGate } from '@/components/auth/AuthGate';
 
 export default function Home() {
   const { user, loading: userLoading } = useUser();
@@ -24,17 +24,10 @@ export default function Home() {
   const [marketLoading, setMarketLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [marketMeta, setMarketMeta] = useState<MarketDataFetchMeta | null>(null);
-  const router = useRouter();
   const { toast } = useToast();
 
   const userRef = useMemo(() => (db && user ? doc(db, 'users', user.uid) : null), [db, user]);
   const { data: profile, loading: profileLoading } = useDoc(userRef);
-
-  useEffect(() => {
-    if (!userLoading && !user) {
-      router.push('/login');
-    }
-  }, [user, userLoading, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -43,7 +36,7 @@ export default function Home() {
       setMarketLoading(true);
       setError(null);
       try {
-        const result = await fetchMarketOHLC(symbol, '1h', 60);
+        const result = await fetchMarketOHLC(symbol, '1h', 90);
         setData(result.candles);
         setMarketMeta(result.meta);
       } catch (e) {
@@ -73,8 +66,6 @@ export default function Home() {
     );
   }
 
-  if (!user) return null;
-
   const currentPrice = data.length > 0 ? data[data.length - 1].close : 0;
   const isSimulated = Boolean(marketMeta?.isSimulated || (data.length > 0 && data[0].isSimulated));
   const providerLabel = marketMeta?.providerId ? marketMeta.providerId.toUpperCase() : 'UNKNOWN';
@@ -82,10 +73,11 @@ export default function Home() {
   const virtualBalance = profile?.virtualBalance ?? 10000;
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <SidebarNav />
+    <AuthGate>
+      <div className="flex h-screen bg-background overflow-hidden">
+        <SidebarNav />
 
-      <main className="flex-1 overflow-y-auto p-6 space-y-6">
+        <main className="flex-1 overflow-y-auto p-6 space-y-6">
         <header className="flex items-center justify-between">
           <form onSubmit={handleSearch} className="flex items-center gap-4 bg-card/30 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 w-96 group focus-within:border-primary/50 transition-all">
             <Search className="w-4 h-4 text-muted-foreground group-focus-within:text-primary" />
@@ -104,7 +96,7 @@ export default function Home() {
                 ${virtualBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </span>
               <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center overflow-hidden border border-primary/30">
-                {user.photoURL ? (
+                {user?.photoURL ? (
                   <img src={user.photoURL} alt="User" className="w-full h-full object-cover" />
                 ) : (
                   <User className="w-4 h-4 text-white" />
@@ -180,5 +172,6 @@ export default function Home() {
         </div>
       </main>
     </div>
+    </AuthGate>
   );
 }

@@ -2,6 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { SidebarNav } from '@/components/dashboard/SidebarNav';
+import { AuthGate } from '@/components/auth/AuthGate';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { BarChart3, TrendingUp, Target, ShieldCheck } from 'lucide-react';
@@ -142,9 +143,10 @@ export default function AnalyticsPage() {
   }, [verifiedSignals]);
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <SidebarNav />
-      <main className="flex-1 overflow-y-auto p-6 space-y-6">
+    <AuthGate>
+      <div className="flex h-screen bg-background overflow-hidden">
+        <SidebarNav />
+        <main className="flex-1 overflow-y-auto p-6 space-y-6">
         <header>
           <h1 className="text-3xl font-headline font-bold glow-blue">ADVANCED ANALYTICS</h1>
           <p className="text-muted-foreground font-body">Deep dive into your trading performance metrics.</p>
@@ -251,7 +253,8 @@ export default function AnalyticsPage() {
         </div>
           </>
         )}
-      </main>
-    </div>
+        </main>
+      </div>
+    </AuthGate>
   );
 }

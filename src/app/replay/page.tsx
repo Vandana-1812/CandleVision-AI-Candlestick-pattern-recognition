@@ -1,15 +1,19 @@
 
 "use client"
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { SidebarNav } from '@/components/dashboard/SidebarNav';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ReplayCandlestickChart } from '@/components/trading/ReplayCandlestickChart';
 import { fetchMarketOHLC, MarketDataFetchMeta, OHLC } from '@/lib/market-data';
+import { AuthGate } from '@/components/auth/AuthGate';
+import { useDoc, useFirestore, useUser } from '@/firebase';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { buildReplaySessionSnapshot, createReplaySessionId, getReplaySessionDocRef, ReplaySessionSnapshot } from '@/lib/replay-session';
+import { setDoc } from 'firebase/firestore';
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -80,6 +84,8 @@ function formatTimestamp(timestamp?: string) {
 }
 
 export default function MarketReplayPage() {
+  const { user } = useUser();
+  const db = useFirestore();
   const [fullData, setFullData] = useState<OHLC[]>([]);
   const [currentIndex, setCurrentIndex] = useState(MIN_REPLAY_WINDOW);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -93,6 +99,16 @@ export default function MarketReplayPage() {
   const [loadVersion, setLoadVersion] = useState(0);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [marketMeta, setMarketMeta] = useState<MarketDataFetchMeta | null>(null);
+  const [sessionId, setSessionId] = useState(() => createReplaySessionId());
+  const sessionSyncTimerRef = useRef<number | null>(null);
+
+  const sessionRef = useMemo(() => {
+    if (!db || !user) return null;
+    return getReplaySessionDocRef(db, user.uid);
+  }, [db, user]);
+
+  const { data: savedSession, loading: sessionLoading } = useDoc<ReplaySessionSnapshot>(sessionRef);
+  const hasRestoredSessionRef = useRef(false);
 
   const replayStartIndex = useMemo(
     () => Math.min(Math.max(MIN_REPLAY_WINDOW, 1), fullData.length || MIN_REPLAY_WINDOW),
@@ -141,6 +157,76 @@ export default function MarketReplayPage() {
       isMounted = false;
     };
   }, [loadVersion]);
+
+  useEffect(() => {
+    hasRestoredSessionRef.current = false;
+    setSessionId(createReplaySessionId());
+    setCurrentIndex(MIN_REPLAY_WINDOW);
+    setIsPlaying(false);
+    setSpeed(1000);
+    setTradeSize(DEFAULT_TRADE_SIZE);
+    setBalance(DEFAULT_BALANCE);
+    setPosition(null);
+    setCompletedTrades([]);
+    setActionFeedback(null);
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user || !sessionRef || sessionLoading || hasRestoredSessionRef.current) return;
+    if (!fullData.length) return;
+
+    if (savedSession) {
+      setSessionId(savedSession.sessionId || createReplaySessionId());
+      setCurrentIndex(Math.min(Math.max(savedSession.currentIndex || replayStartIndex, replayStartIndex), fullData.length));
+      setIsPlaying(false);
+      setSpeed(savedSession.speed || 1000);
+      setTradeSize(savedSession.tradeSize || DEFAULT_TRADE_SIZE);
+      setBalance(typeof savedSession.balance === 'number' ? savedSession.balance : DEFAULT_BALANCE);
+      setPosition(savedSession.position ?? null);
+      setCompletedTrades(Array.isArray(savedSession.completedTrades) ? savedSession.completedTrades : []);
+      setActionFeedback(savedSession.actionFeedback || 'Replay session restored from your last visit.');
+      if (savedSession.marketMeta) {
+        setMarketMeta(savedSession.marketMeta);
+      }
+    } else {
+      setCurrentIndex(replayStartIndex);
+    }
+
+    hasRestoredSessionRef.current = true;
+  }, [fullData.length, replayStartIndex, savedSession, sessionLoading, sessionRef, user]);
+
+  useEffect(() => {
+    if (!user || !sessionRef || !hasRestoredSessionRef.current || isLoading || !fullData.length) return;
+
+    if (sessionSyncTimerRef.current) {
+      window.clearTimeout(sessionSyncTimerRef.current);
+    }
+
+    sessionSyncTimerRef.current = window.setTimeout(() => {
+      void setDoc(
+        sessionRef,
+        buildReplaySessionSnapshot({
+          sessionId,
+          currentIndex,
+          speed,
+          tradeSize,
+          balance,
+          position,
+          completedTrades,
+          actionFeedback,
+          marketMeta,
+          replayStartIndex,
+        }),
+        { merge: true }
+      );
+    }, 250);
+
+    return () => {
+      if (sessionSyncTimerRef.current) {
+        window.clearTimeout(sessionSyncTimerRef.current);
+      }
+    };
+  }, [actionFeedback, balance, completedTrades, currentIndex, fullData.length, isLoading, marketMeta, position, replayStartIndex, sessionId, sessionRef, speed, tradeSize, user]);
 
   const displayData = useMemo(
     () => fullData.slice(0, currentIndex),
@@ -211,7 +297,7 @@ export default function MarketReplayPage() {
       investedAmount: capitalToDeploy,
       openedAt: currentBar.timestamp,
     });
-    setActionFeedback(`${side === 'long' ? 'Long' : 'Short'} position opened.`);
+    setActionFeedback(`${side === 'long' ? 'Long' : 'Short'} position opened at ${formatCurrency(currentBar.close)}.`);
   };
 
   const closePosition = () => {
@@ -243,12 +329,13 @@ export default function MarketReplayPage() {
       ...prev,
     ]);
     setPosition(null);
-    setActionFeedback('Position closed and trade recorded.');
+    setActionFeedback(`Position closed. Realized PnL ${formatCurrency(pnl)} has been saved to this session.`);
   };
 
   const resetSession = () => {
     setIsPlaying(false);
     setCurrentIndex(replayStartIndex);
+    setSessionId(createReplaySessionId());
     setBalance(DEFAULT_BALANCE);
     setTradeSize(DEFAULT_TRADE_SIZE);
     setPosition(null);
@@ -277,9 +364,10 @@ export default function MarketReplayPage() {
   const hasReachedEnd = fullData.length > 0 && currentIndex >= fullData.length;
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <SidebarNav />
-      <main className="flex-1 overflow-y-auto p-6 space-y-6">
+    <AuthGate>
+      <div className="flex h-screen bg-background overflow-hidden">
+        <SidebarNav />
+        <main className="flex-1 overflow-y-auto p-6 space-y-6">
         <header>
           <h1 className="text-3xl font-headline font-bold glow-blue">MARKET REPLAY TERMINAL</h1>
           <p className="text-muted-foreground font-body">Simulate historical market conditions to study neural patterns.</p>
@@ -590,13 +678,13 @@ export default function MarketReplayPage() {
 
             <Card className="holographic-card border-primary/20">
               <CardHeader>
-                <CardTitle className="font-headline text-sm uppercase">Recent Replay Trades</CardTitle>
+                <CardTitle className="font-headline text-sm uppercase">Session Trade History</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-xl border border-white/10 bg-background/40 p-3">
                     <p className="text-[10px] uppercase font-headline text-muted-foreground">Closed Trades</p>
-                    <p className="text-base xl:text-xl font-headline tabular-nums">{meaningfulTrades.length}</p>
+                    <p className="text-base xl:text-xl font-headline tabular-nums">{completedTrades.length}</p>
                   </div>
                   <div className="rounded-xl border border-white/10 bg-background/40 p-3">
                     <p className="text-[10px] uppercase font-headline text-muted-foreground">Avg PnL</p>
@@ -607,12 +695,12 @@ export default function MarketReplayPage() {
                 </div>
 
                 <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
-                  {meaningfulTrades.length === 0 ? (
+                  {completedTrades.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-muted-foreground">
-                      Meaningful replay trades will appear here once positions close with a real price move.
+                      Closed positions from this session will appear here once you press Close Position.
                     </div>
                   ) : (
-                    meaningfulTrades.map((trade) => (
+                    completedTrades.map((trade) => (
                       <div key={trade.id} className="rounded-xl border border-white/10 bg-background/30 p-4 space-y-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
@@ -647,7 +735,8 @@ export default function MarketReplayPage() {
             </Card>
           </div>
         </div>
-      </main>
-    </div>
+        </main>
+      </div>
+    </AuthGate>
   );
 }

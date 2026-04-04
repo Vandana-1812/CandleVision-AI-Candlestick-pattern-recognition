@@ -3,6 +3,7 @@
 
 import React, { useMemo, useEffect, useRef } from 'react';
 import { SidebarNav } from '@/components/dashboard/SidebarNav';
+import { AuthGate } from '@/components/auth/AuthGate';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useUser, useFirestore, useCollection } from '@/firebase';
 import { collection, query, orderBy, limit, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
@@ -160,9 +161,10 @@ export default function PerformancePage() {
   }, [signals]);
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <SidebarNav />
-      <main className="flex-1 overflow-y-auto p-6 space-y-6">
+    <AuthGate>
+      <div className="flex h-screen bg-background overflow-hidden">
+        <SidebarNav />
+        <main className="flex-1 overflow-y-auto p-6 space-y-6">
         <header>
           <h1 className="text-3xl font-headline font-bold glow-blue">AI PERFORMANCE ANALYTICS</h1>
           <p className="text-muted-foreground font-body">Deep verification of neural network prediction accuracy.</p>
@@ -256,7 +258,8 @@ export default function PerformancePage() {
             </div>
           </Card>
         </div>
-      </main>
-    </div>
+        </main>
+      </div>
+    </AuthGate>
   );
 }

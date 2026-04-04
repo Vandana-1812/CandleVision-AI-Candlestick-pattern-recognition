@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/firebase';
-import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 
 const navItems = [
@@ -39,8 +38,9 @@ export const SidebarNav: React.FC = () => {
 
   const handleLogout = async () => {
     if (!auth) return;
-    await signOut(auth);
-    router.push('/login');
+    await auth.auth.signOut();
+    router.replace('/login');
+    router.refresh();
   };
 
   return (

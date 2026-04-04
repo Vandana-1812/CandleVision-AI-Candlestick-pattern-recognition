@@ -2,6 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { SidebarNav } from '@/components/dashboard/SidebarNav';
+import { AuthGate } from '@/components/auth/AuthGate';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { History, ArrowUpRight, ArrowDownRight, Loader2 } from 'lucide-react';
@@ -20,9 +21,10 @@ export default function HistoryPage() {
   const { data: signals, loading } = useCollection(signalsQuery);
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <SidebarNav />
-      <main className="flex-1 overflow-y-auto p-6 space-y-6">
+    <AuthGate>
+      <div className="flex h-screen bg-background overflow-hidden">
+        <SidebarNav />
+        <main className="flex-1 overflow-y-auto p-6 space-y-6">
         <header>
           <h1 className="text-3xl font-headline font-bold glow-blue">TRADE HISTORY</h1>
           <p className="text-muted-foreground font-body">Historical log of all terminal operations.</p>
@@ -110,7 +112,8 @@ export default function HistoryPage() {
             )}
           </CardContent>
         </Card>
-      </main>
-    </div>
+        </main>
+      </div>
+    </AuthGate>
   );
 }

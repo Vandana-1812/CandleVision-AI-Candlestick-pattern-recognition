@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { SidebarNav } from '@/components/dashboard/SidebarNav';
+import { AuthGate } from '@/components/auth/AuthGate';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { User, Shield, Database, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -24,7 +25,6 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useDoc, useFirestore, useUser } from '@/firebase';
 import { doc, setDoc, serverTimestamp, collection, getDocs, deleteDoc } from 'firebase/firestore';
-import { sendPasswordResetEmail, updateProfile } from 'firebase/auth';
 
 type UserSettings = {
   hapticFeedback: boolean;
@@ -122,7 +122,7 @@ export default function SettingsPage() {
     if (!user) return;
 
     const profileData = (profile as any) ?? {};
-    setDisplayName(profileData.displayName || user.displayName || '');
+    setDisplayName(profileData.displayName || user.user_metadata?.display_name || user.user_metadata?.full_name || '');
     setEmail(profileData.email || user.email || '');
     setSettings({
       hapticFeedback: profileData.settings?.hapticFeedback ?? DEFAULT_SETTINGS.hapticFeedback,
@@ -155,8 +155,13 @@ export default function SettingsPage() {
         }
       }
 
-      if (auth?.currentUser && trimmedName && trimmedName !== auth.currentUser.displayName) {
-        await updateProfile(auth.currentUser, { displayName: trimmedName });
+      if (auth && trimmedName) {
+        await auth.auth.updateUser({
+          data: {
+            display_name: trimmedName,
+            full_name: trimmedName,
+          },
+        });
       }
 
       await setDoc(
@@ -192,7 +197,9 @@ export default function SettingsPage() {
 
     setSendingReset(true);
     try {
-      await sendPasswordResetEmail(auth, email);
+      await auth.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth?mode=login`,
+      });
       toast({
         title: 'Reset email sent',
         description: `Password reset instructions were sent to ${email}.`,
@@ -235,7 +242,11 @@ export default function SettingsPage() {
       await setDoc(
         doc(db, 'users', user.uid),
         {
-          displayName: displayName.trim() || user.displayName || 'Operator',
+          displayName:
+            displayName.trim() ||
+            user.user_metadata?.display_name ||
+            user.user_metadata?.full_name ||
+            'Operator',
           email: email || user.email || '',
           virtualBalance: 10000,
           tradesCount: 0,
@@ -264,7 +275,7 @@ export default function SettingsPage() {
     }
   };
 
-  if (!user || profileLoading) {
+  if (profileLoading) {
     return (
       <div className="flex h-screen bg-background overflow-hidden">
         <SidebarNav />
@@ -278,9 +289,10 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <SidebarNav />
-      <main className="flex-1 overflow-y-auto p-6 space-y-6">
+    <AuthGate>
+      <div className="flex h-screen bg-background overflow-hidden">
+        <SidebarNav />
+        <main className="flex-1 overflow-y-auto p-6 space-y-6">
         <header>
           <h1 className="text-3xl font-headline font-bold glow-blue">TERMINAL SETTINGS</h1>
           <p className="text-muted-foreground font-body">Configure your operative environment.</p>
@@ -511,7 +523,8 @@ export default function SettingsPage() {
             </Card>
           </div>
         </div>
-      </main>
-    </div>
+        </main>
+      </div>
+    </AuthGate>
   );
 }

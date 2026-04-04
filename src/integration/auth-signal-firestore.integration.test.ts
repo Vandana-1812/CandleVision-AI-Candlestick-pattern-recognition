@@ -95,6 +95,40 @@ describe('integration: auth + signal generation + firestore write/read', () => {
       signal: 'Buy',
       confidenceScore: 87,
       reasoning: 'Bullish momentum and RSI support.',
+      patternDetected: 'hammer',
+      patternConfidence: 0.82,
+      detectedPatterns: [
+        {
+          name: 'hammer',
+          confidence: 0.82,
+          signal: 'Buy',
+          direction: 'bullish',
+          patternId: 0,
+          isStrongSignal: true,
+        },
+      ],
+      technicalAlignment: 0.78,
+      patternSummary: {
+        dominantSignal: 'Buy',
+        confidence: 0.82,
+        totalPatterns: 1,
+        bullishPatterns: [{ name: 'hammer', confidence: 0.82 }],
+        bearishPatterns: [],
+        neutralPatterns: [],
+        strongSignals: [{ name: 'hammer', confidence: 0.82 }],
+      },
+      technicalSummary: {
+        rsi: 72,
+        macd: {
+          line: 1.2,
+          signal: 0.9,
+          histogram: 0.3,
+        },
+        momentum: 'Bullish',
+        alignmentScore: 0.78,
+      },
+      explanationDetails: ['Hammer detected with bullish alignment.'],
+      signalContractVersion: 'v2',
     });
   });
 
@@ -110,7 +144,8 @@ describe('integration: auth + signal generation + firestore write/read', () => {
       mode: 'register',
     });
 
-    expect(userCredential.user.uid).toBe('user-123');
+    const uid = userCredential.user?.uid;
+    expect(uid).toBe('user-123');
     expect(authMocks.createUserWithEmailAndPassword).toHaveBeenCalledTimes(1);
     expect(firestoreMocks.setDoc).toHaveBeenCalledTimes(1);
 
@@ -138,18 +173,26 @@ describe('integration: auth + signal generation + firestore write/read', () => {
       currentPrice: 68000,
     });
 
-    const signalId = await saveSignalRecord(fakeDb, userCredential.user.uid, {
+    const signalId = await saveSignalRecord(fakeDb, uid ?? 'user-123', {
       symbol: 'BTCUSDT',
       signal: generated.signal,
       entryPrice: 68000,
       confidenceScore: generated.confidenceScore,
       reasoning: generated.reasoning,
+      patternDetected: generated.patternDetected,
+      patternConfidence: generated.patternConfidence,
+      technicalAlignment: generated.technicalAlignment,
+      detectedPatterns: generated.detectedPatterns,
+      patternSummary: generated.patternSummary,
+      technicalSummary: generated.technicalSummary,
+      explanationDetails: generated.explanationDetails,
+      signalContractVersion: generated.signalContractVersion,
     });
 
     expect(signalId).toBe('signal-1');
     expect(firestoreMocks.addDoc).toHaveBeenCalledTimes(1);
 
-    const savedSignals = await listSignalRecords(fakeDb, userCredential.user.uid);
+    const savedSignals = await listSignalRecords(fakeDb, uid ?? 'user-123');
 
     expect(savedSignals).toHaveLength(1);
     expect(savedSignals[0]?.id).toBe('signal-1');
