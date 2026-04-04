@@ -1,0 +1,1 @@
+This commit reverts commit 61c4bd74fecf566d61493aa8831a36a214db0577.\n\nRevert AISignalPanel stub; restore original implementation.
