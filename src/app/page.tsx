@@ -7,6 +7,7 @@ import { useUser, useFirestore, useDoc } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { SidebarNav } from '@/components/dashboard/SidebarNav';
 import { TradingStats } from '@/components/dashboard/TradingStats';
+import { CandlestickPatterns } from '@/components/dashboard/CandlestickPatterns';
 import { MarketChart3D } from '@/components/trading/MarketChart3D';
 import { AISignalPanel } from '@/components/trading/AISignalPanel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -110,12 +111,7 @@ export default function Home() {
           </div>
         </header>
 
-        <TradingStats 
-          balance={virtualBalance} 
-          pnl={virtualBalance - 10000} 
-          winRate={profile?.winRate ?? 0} 
-          trades={profile?.tradesCount ?? 0} 
-        />
+        <CandlestickPatterns />
 
         <div className="grid grid-cols-12 gap-6 h-[calc(100vh-250px)]">
           <div className="col-span-12 lg:col-span-8 space-y-6 h-full">
