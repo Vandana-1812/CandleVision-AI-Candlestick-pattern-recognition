@@ -4,16 +4,23 @@
  */
 
 import {ai} from '@/ai/genkit';
+import {assertLlmFallbackEnabled} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const ExplainTradingSignalInputSchema = z.object({
   assetSymbol: z.string(),
   signal: z.string(),
   confidenceScore: z.number(),
-  detectedPatterns: z.array(z.string()),
+  detectedPatterns: z.array(z.object({
+    name: z.string(),
+    confidence: z.number(),
+    signal: z.string(),
+    direction: z.string(),
+  })),
   technicalIndicators: z.array(z.object({ name: z.string(), value: z.any() })),
   priceMomentum: z.string(),
   marketContext: z.string().optional(),
+  signalContextJSON: z.string().optional(),
 });
 export type ExplainTradingSignalInput = z.infer<typeof ExplainTradingSignalInputSchema>;
 
@@ -27,7 +34,18 @@ export type ExplainTradingSignalOutput = z.infer<typeof ExplainTradingSignalOutp
 const explainTradingSignalPrompt = ai.definePrompt({
   name: 'explainTradingSignalPrompt',
   model: 'googleai/gemini-2.5-flash',
-  input: {schema: ExplainTradingSignalInputSchema},
+  input: {
+    schema: z.object({
+      assetSymbol: z.string(),
+      signal: z.string(),
+      confidenceScore: z.number(),
+      detectedPatternsJSON: z.string(),
+      technicalIndicatorsJSON: z.string(),
+      priceMomentum: z.string(),
+      marketContext: z.string().optional(),
+      signalContextJSON: z.string().optional(),
+    }),
+  },
   output: {schema: ExplainTradingSignalOutputSchema},
   config: {
     responseMimeType: 'application/json',
@@ -36,6 +54,14 @@ const explainTradingSignalPrompt = ai.definePrompt({
 
 Confidence: {{confidenceScore}}%
 Momentum: {{{priceMomentum}}}
+Signal Context:
+{{{signalContextJSON}}}
+
+Detected Patterns:
+{{{detectedPatternsJSON}}}
+
+Technical Indicators:
+{{{technicalIndicatorsJSON}}}
 
 Constraints:
 1. Break analysis into 3-5 clear steps.
@@ -51,7 +77,18 @@ const explainTradingSignalFlow = ai.defineFlow(
   },
   async (input) => {
     try {
-      const {output} = await explainTradingSignalPrompt(input);
+      assertLlmFallbackEnabled('explainTradingSignalFlow');
+
+      const {output} = await explainTradingSignalPrompt({
+        assetSymbol: input.assetSymbol,
+        signal: input.signal,
+        confidenceScore: input.confidenceScore,
+        detectedPatternsJSON: JSON.stringify(input.detectedPatterns),
+        technicalIndicatorsJSON: JSON.stringify(input.technicalIndicators),
+        priceMomentum: input.priceMomentum,
+        marketContext: input.marketContext,
+        signalContextJSON: input.signalContextJSON,
+      });
       if (!output) throw new Error('AI returned empty response');
       return output;
     } catch (error) {

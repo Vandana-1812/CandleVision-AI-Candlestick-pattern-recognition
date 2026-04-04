@@ -3,12 +3,12 @@
 import React, { createContext, useContext } from 'react';
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
-import { Auth } from 'firebase/auth';
+import { getSupabaseBrowserClient } from '@/lib/supabase';
 
 interface FirebaseContextProps {
   app: FirebaseApp | null;
   db: Firestore | null;
-  auth: Auth | null;
+  auth: unknown | null;
 }
 
 const FirebaseContext = createContext<FirebaseContextProps | null>(null);
@@ -22,7 +22,7 @@ export function FirebaseProvider({
   children: React.ReactNode;
   firebaseApp: FirebaseApp | null;
   firestore: Firestore | null;
-  auth: Auth | null;
+  auth: unknown | null;
 }) {
   return (
     <FirebaseContext.Provider value={{ app: firebaseApp, db: firestore, auth }}>
@@ -39,4 +39,4 @@ export const useFirebase = () => {
 
 export const useFirebaseApp = () => useFirebase().app;
 export const useFirestore = () => useFirebase().db;
-export const useAuth = () => useFirebase().auth;
+export const useAuth = () => getSupabaseBrowserClient();

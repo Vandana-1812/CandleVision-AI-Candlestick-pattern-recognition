@@ -13,6 +13,15 @@ import {
   Cpu
 } from 'lucide-react';
 import { explainTradingSignals } from '@/ai/flows/explain-trading-signals';
+import { 
+  Sparkles, 
+  BrainCircuit, 
+  Info, 
+  CheckCircle2, 
+  Loader2, 
+  Cpu
+} from 'lucide-react';
+import { generateTradingSignals } from '@/ai/flows/generate-trading-signals';
 import { OHLC, calculateRSI, calculateMACD, calculateBollingerBands } from '@/lib/market-data';
 import { saveSignalRecord } from '@/lib/signal-repository';
 import { useToast } from '@/hooks/use-toast';
@@ -30,6 +39,24 @@ interface ModelSignalResponse {
   confidenceScore: number;
   signal: 'Buy' | 'Sell' | 'Hold';
   reasoning: string;
+const SIGNAL_GENERATION_TIMEOUT_MS = 130000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(message));
+    }, timeoutMs);
+
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
 }
 
 export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol }) => {
@@ -52,6 +79,10 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
 
     try {
       const currentPrice = marketData[marketData.length - 1].close;
+      const analysisWindow = Math.min(marketData.length, 90);
+      const sequenceWindow = Math.min(analysisWindow, 60);
+
+      // Calculate real technical indicators from market data
       const rsiValues = calculateRSI(marketData);
       const macdValues = calculateMACD(marketData);
       const bbValues = calculateBollingerBands(marketData);
@@ -66,50 +97,78 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
           ? 'Bearish'
           : 'Neutral';
 
-      const response = await fetch('/api/ml-signal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbol }),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Failed to run ML inference');
-      }
-
-      const result = payload as ModelSignalResponse;
+      // Step 1: Generate Raw Signal
+      const result = await withTimeout(
+        generateTradingSignals({
+          symbol,
+          interval: '1h',
+          ohlcData: marketData.slice(-sequenceWindow),
+          currentPrice,
+          technicalIndicators: {
+            rsi: currentRSI,
+            macd: {
+              line: currentMACD.macd,
+              signal: currentMACD.signal,
+              histogram: currentMACD.histogram,
+            },
+            bollingerBands: {
+              upper: currentBB.upper,
+              middle: currentBB.middle,
+              lower: currentBB.lower,
+            },
+          },
+        }),
+        SIGNAL_GENERATION_TIMEOUT_MS,
+        'Model inference is taking longer than expected.'
+      );
       setSignal(result);
 
+      // Render the core signal immediately; explanation can arrive later.
+      setExplanation({
+        summary: result.reasoning,
+        steps: result.explanationDetails?.length
+          ? result.explanationDetails
+          : ['Pattern and technical analysis completed.'],
+        conclusion: `Suggested action: ${result.signal}`,
+      });
+
+      // Step 2: Store Signal for Verification
       if (user && db) {
-        await saveSignalRecord(db, user.uid, {
-          symbol,
-          signal: result.signal,
-          entryPrice: currentPrice,
-          confidenceScore: result.confidenceScore,
-          reasoning: result.reasoning,
-          pattern: result.pattern,
-        });
+        try {
+          void saveSignalRecord(db, user.uid, {
+            symbol,
+            signal: result.signal,
+            entryPrice: currentPrice,
+            confidenceScore: result.confidenceScore,
+            inferenceModel: result.inferenceModel,
+            reasoning: result.reasoning,
+            patternDetected: result.patternDetected,
+            patternConfidence: result.patternConfidence,
+            technicalAlignment: result.technicalAlignment,
+            detectedPatterns: result.detectedPatterns,
+            patternSummary: result.patternSummary,
+            technicalSummary: result.technicalSummary,
+            explanationDetails: result.explanationDetails,
+            signalContractVersion: result.signalContractVersion,
+          }).catch((persistenceError) => {
+            console.warn('Signal persistence failed; continuing with in-memory output.', persistenceError);
+          });
+        } catch (persistenceError) {
+          console.warn('Signal persistence failed; continuing with in-memory output.', persistenceError);
+        }
       }
 
-      const exp = await explainTradingSignals({
-        assetSymbol: symbol,
-        signal: result.signal,
-        confidenceScore: result.confidenceScore,
-        detectedPatterns: [result.pattern],
-        technicalIndicators: [
-          { name: 'RSI', value: currentRSI.toFixed(2) },
-          { name: 'MACD Histogram', value: currentMACD.histogram.toFixed(4) },
-          { name: 'Bollinger Band Width', value: (currentBB.upper - currentBB.lower).toFixed(4) },
-        ],
-        priceMomentum,
-        marketContext: result.reasoning,
-      });
-      setExplanation(exp);
     } catch (error: any) {
       console.error("Signal Generation Error:", error);
+      const friendlyDescription =
+        typeof error?.message === 'string' && error.message.toLowerCase().includes('timed out')
+          ? 'Model engine is warming up. Please try again in a few seconds.'
+          : 'Unable to generate a signal right now. Please try again shortly.';
+
       toast({
         variant: "destructive",
         title: "Intelligence Pipeline Error",
-        description: error.message || "Failed to process market data. Please try again.",
+        description: friendlyDescription,
       });
     } finally {
       setLoading(false);
@@ -125,7 +184,7 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
               <BrainCircuit className="w-5 h-5 text-primary" />
               AI STRATEGY TERMINAL
             </CardTitle>
-            <CardDescription className="text-[10px] uppercase tracking-wider">Neural Analysis Engine Active</CardDescription>
+            <CardDescription className="text-[10px] uppercase tracking-wider">Model Inference Engine Active</CardDescription>
           </div>
           <Button
             onClick={getSignal}
@@ -186,6 +245,19 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
             <div className="p-4 rounded-xl bg-background/40 border border-white/5 space-y-1">
               <p className="text-[10px] font-headline text-muted-foreground uppercase">Detected Pattern</p>
               <p className="font-headline text-base text-primary">{signal.pattern}</p>
+            <div className="p-3 rounded-xl bg-background/40 border border-white/5 flex items-center justify-between">
+              <p className="text-[10px] font-headline text-muted-foreground uppercase">Inference Model</p>
+              <Badge className={`text-[10px] px-2.5 py-1 font-headline border ${
+                signal.inferenceModel === 'LSTM'
+                  ? 'bg-primary/20 text-primary border-primary/40'
+                  : signal.inferenceModel === 'CNN'
+                  ? 'bg-accent/20 text-accent border-accent/40'
+                  : signal.inferenceModel === 'YOLO'
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-400/40'
+                  : 'bg-muted/20 text-muted-foreground border-white/10'
+              }`}>
+                {signal.inferenceModel ?? 'UNKNOWN'}
+              </Badge>
             </div>
 
             <div className="space-y-4">

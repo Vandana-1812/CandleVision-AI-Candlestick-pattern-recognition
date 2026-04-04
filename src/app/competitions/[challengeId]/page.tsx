@@ -4,6 +4,7 @@ import Link from 'next/link';
 import React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { SidebarNav } from '@/components/dashboard/SidebarNav';
+import { AuthGate } from '@/components/auth/AuthGate';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -139,9 +140,10 @@ export default function CompetitionChallengePage() {
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <SidebarNav />
-      <main className="flex-1 overflow-y-auto p-6 space-y-6">
+    <AuthGate>
+      <div className="flex h-screen bg-background overflow-hidden">
+        <SidebarNav />
+        <main className="flex-1 overflow-y-auto p-6 space-y-6">
         <header className="space-y-4">
           <Link href="/competitions" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-white transition-colors">
             <ArrowLeft className="w-4 h-4" />
@@ -392,7 +394,8 @@ export default function CompetitionChallengePage() {
             </Card>
           </div>
         </div>
-      </main>
-    </div>
+        </main>
+      </div>
+    </AuthGate>
   );
 }

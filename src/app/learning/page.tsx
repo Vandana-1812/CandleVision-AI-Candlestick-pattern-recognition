@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SidebarNav } from '@/components/dashboard/SidebarNav';
+import { AuthGate } from '@/components/auth/AuthGate';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -283,9 +284,10 @@ export default function LearningPage() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <SidebarNav />
-      <main className="flex-1 overflow-y-auto p-6">
+    <AuthGate>
+      <div className="flex h-screen overflow-hidden bg-background">
+        <SidebarNav />
+        <main className="flex-1 overflow-y-auto p-6">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
           <header className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -684,7 +686,8 @@ export default function LearningPage() {
             </aside>
           </div>
         </div>
-      </main>
-    </div>
+          </main>
+        </div>
+      </AuthGate>
   );
 }
