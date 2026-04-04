@@ -1,14 +1,14 @@
 "use client"
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { SidebarNav } from '@/components/dashboard/SidebarNav';
 import { AuthGate } from '@/components/auth/AuthGate';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
-import { BarChart3, TrendingUp, Target, ShieldCheck } from 'lucide-react';
+import { BarChart3, TrendingUp, Target, ShieldCheck, BrainCircuit, Loader2 } from 'lucide-react';
 import { useUser, useFirestore, useCollection } from '@/firebase';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import type { TrainingReport } from '@/lib/training/types';
 
 type Signal = {
   id: string;
@@ -34,6 +34,9 @@ function normalizeTimestamp(raw: Signal['timestamp']) {
 export default function AnalyticsPage() {
   const { user } = useUser();
   const db = useFirestore();
+  const [trainingReport, setTrainingReport] = useState<TrainingReport | null>(null);
+  const [trainingLoading, setTrainingLoading] = useState(true);
+  const [trainingError, setTrainingError] = useState<string | null>(null);
 
   const signalsQuery = useMemo(() => {
     if (!db || !user) return null;
@@ -43,9 +46,43 @@ export default function AnalyticsPage() {
   const { data: signals, loading } = useCollection(signalsQuery);
 
   const verifiedSignals = useMemo(() => {
-    return (signals as Signal[])
-      .filter((signal) => signal.isVerified && typeof signal.profitLoss === 'number');
+    return (signals as Signal[]).filter(
+      (signal) => signal.isVerified && typeof signal.profitLoss === 'number'
+    );
   }, [signals]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadTrainingReport = async () => {
+      setTrainingLoading(true);
+      setTrainingError(null);
+      try {
+        const response = await fetch('/api/training/nifty?interval=1h&range=1mo&horizonCandles=6&thresholdPct=0.35');
+        if (!response.ok) {
+          throw new Error(`Training request failed: ${response.status}`);
+        }
+
+        const payload = await response.json();
+        if (!cancelled) {
+          setTrainingReport(payload);
+        }
+      } catch (error: any) {
+        if (!cancelled) {
+          setTrainingError(error?.message || 'Unable to load NIFTY training report');
+        }
+      } finally {
+        if (!cancelled) {
+          setTrainingLoading(false);
+        }
+      }
+    };
+
+    loadTrainingReport();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const metrics = useMemo(() => {
     if (verifiedSignals.length === 0) {
@@ -53,29 +90,26 @@ export default function AnalyticsPage() {
     }
 
     const pnls: number[] = verifiedSignals.map((signal) => Number(signal.profitLoss || 0));
-
-    // Sharpe Ratio (annualised assuming ~8760 hourly signal periods per year)
     const mean = pnls.reduce((a, b) => a + b, 0) / pnls.length;
     const variance = pnls.reduce((acc, v) => acc + (v - mean) ** 2, 0) / pnls.length;
     const std = Math.sqrt(variance);
     const sharpe = std > 0 ? parseFloat(((mean / std) * Math.sqrt(8760)).toFixed(2)) : 0;
 
-    // Profit Factor = gross profit / gross loss
     const grossProfit = pnls.filter((v) => v > 0).reduce((a, b) => a + b, 0);
     const grossLoss = Math.abs(pnls.filter((v) => v < 0).reduce((a, b) => a + b, 0));
-    const profitFactor = grossLoss > 0 ? parseFloat((grossProfit / grossLoss).toFixed(2)) : grossProfit > 0 ? Infinity : 0;
-    // Max drawdown
+    const profitFactor =
+      grossLoss > 0 ? parseFloat((grossProfit / grossLoss).toFixed(2)) : grossProfit > 0 ? Infinity : 0;
+
     let balance = 10000;
     let peak = balance;
     let maxDrawdown = 0;
-    for (const pnl of pnls.reverse()) {
+    for (const pnl of [...pnls].reverse()) {
       balance += pnl;
       if (balance > peak) peak = balance;
       const dd = peak > 0 ? ((peak - balance) / peak) * 100 : 0;
       if (dd > maxDrawdown) maxDrawdown = dd;
     }
 
-    // Expectancy = (win rate × avg win) - (loss rate × avg loss)
     const wins = pnls.filter((v) => v > 0);
     const losses = pnls.filter((v) => v < 0);
     const winRate = wins.length / pnls.length;
@@ -93,14 +127,14 @@ export default function AnalyticsPage() {
 
   const equityChartData = useMemo(() => {
     if (verifiedSignals.length === 0) return [];
-    let balance = 10000;
-    return [...verifiedSignals].reverse().map((signal, i) => {
-      balance += Number(signal.profitLoss || 0);
 
+    let balance = 10000;
+    return [...verifiedSignals].reverse().map((signal, index) => {
+      balance += Number(signal.profitLoss || 0);
       const timestampMs = normalizeTimestamp(signal.timestamp);
       const label = timestampMs
         ? new Date(timestampMs).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-        : `#${i + 1}`;
+        : `#${index + 1}`;
 
       return {
         name: label,
@@ -132,11 +166,9 @@ export default function AnalyticsPage() {
       }
 
       const wins = inBucket.filter((signal) => signal.predictionResult === 'correct').length;
-      const accuracy = Math.round((wins / inBucket.length) * 100);
-
       return {
         range: bucket.label,
-        accuracy,
+        accuracy: Math.round((wins / inBucket.length) * 100),
         samples: inBucket.length,
       };
     });
@@ -160,97 +192,159 @@ export default function AnalyticsPage() {
           </Card>
         ) : (
           <>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="holographic-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-headline text-muted-foreground uppercase">Sharpe Ratio</CardTitle>
-              <TrendingUp className="w-4 h-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold font-headline">{metrics.sharpe}</div>
-            </CardContent>
-          </Card>
-          <Card className="holographic-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-headline text-muted-foreground uppercase">Profit Factor</CardTitle>
-              <Target className="w-4 h-4 text-accent" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold font-headline text-accent">
-                {metrics.profitFactor === null ? 'N/A' : metrics.profitFactor}
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="holographic-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-headline text-muted-foreground uppercase">Max Drawdown</CardTitle>
-              <ShieldCheck className="w-4 h-4 text-destructive" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold font-headline text-destructive">-{metrics.drawdown}%</div>
-            </CardContent>
-          </Card>
-          <Card className="holographic-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-headline text-muted-foreground uppercase">Expectancy</CardTitle>
-              <BarChart3 className="w-4 h-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold font-headline">${metrics.expectancy}</div>
-            </CardContent>
-          </Card>
-        </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card className="holographic-card">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-headline text-muted-foreground uppercase">Sharpe Ratio</CardTitle>
+                  <TrendingUp className="w-4 h-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-headline">{metrics.sharpe}</div>
+                </CardContent>
+              </Card>
+              <Card className="holographic-card">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-headline text-muted-foreground uppercase">Profit Factor</CardTitle>
+                  <Target className="w-4 h-4 text-accent" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-headline text-accent">
+                    {metrics.profitFactor === null ? 'N/A' : metrics.profitFactor}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="holographic-card">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-headline text-muted-foreground uppercase">Max Drawdown</CardTitle>
+                  <ShieldCheck className="w-4 h-4 text-destructive" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-headline text-destructive">-{metrics.drawdown}%</div>
+                </CardContent>
+              </Card>
+              <Card className="holographic-card">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-headline text-muted-foreground uppercase">Expectancy</CardTitle>
+                  <BarChart3 className="w-4 h-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-headline">${metrics.expectancy}</div>
+                </CardContent>
+              </Card>
+            </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <Card className="holographic-card p-6 min-h-[400px]">
-          <CardTitle className="font-headline text-lg glow-blue mb-6">EQUITY CURVE</CardTitle>
-          {equityChartData.length > 0 ? (
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={equityChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-                  <XAxis dataKey="name" stroke="#888" fontSize={10} />
-                  <YAxis domain={['auto', 'auto']} stroke="#888" fontSize={10} tickFormatter={(val) => `$${val}`} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }}
-                    labelStyle={{ color: '#94a3b8' }}
-                  />
-                  <Line type="monotone" dataKey="balance" stroke="#2a5a9f" strokeWidth={3} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-full text-muted-foreground italic text-sm">
-              No verified signals yet. Generate and verify signals to render equity analytics.
-            </div>
-          )}
-        </Card>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <Card className="holographic-card p-6 min-h-[400px]">
+                <CardTitle className="font-headline text-lg glow-blue mb-6">EQUITY CURVE</CardTitle>
+                {equityChartData.length > 0 ? (
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={equityChartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+                        <XAxis dataKey="name" stroke="#888" fontSize={10} />
+                        <YAxis domain={['auto', 'auto']} stroke="#888" fontSize={10} tickFormatter={(val) => `$${val}`} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }}
+                          labelStyle={{ color: '#94a3b8' }}
+                        />
+                        <Line type="monotone" dataKey="balance" stroke="#2a5a9f" strokeWidth={3} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-muted-foreground italic text-sm">
+                    No verified signals yet. Generate and verify signals to render equity analytics.
+                  </div>
+                )}
+              </Card>
 
-        <Card className="holographic-card p-6 min-h-[400px]">
-          <CardTitle className="font-headline text-lg glow-blue mb-6">CONFIDENCE VS ACCURACY</CardTitle>
-          {verifiedSignals.length > 0 ? (
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={confidenceAccuracyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-                  <XAxis dataKey="range" stroke="#888" fontSize={10} />
-                  <YAxis stroke="#888" fontSize={10} domain={[0, 100]} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }}
-                    labelStyle={{ color: '#94a3b8' }}
-                    formatter={(value, _name, item) => [`${value}%`, `Accuracy (${item.payload.samples} samples)`]}
-                  />
-                  <Bar dataKey="accuracy" fill="#2a5a9f" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <Card className="holographic-card p-6 min-h-[400px]">
+                <CardTitle className="font-headline text-lg glow-blue mb-6">CONFIDENCE VS ACCURACY</CardTitle>
+                {verifiedSignals.length > 0 ? (
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={confidenceAccuracyData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+                        <XAxis dataKey="range" stroke="#888" fontSize={10} />
+                        <YAxis stroke="#888" fontSize={10} domain={[0, 100]} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }}
+                          labelStyle={{ color: '#94a3b8' }}
+                          formatter={(value, _name, item) => [`${value}%`, `Accuracy (${item.payload.samples} samples)`]}
+                        />
+                        <Bar dataKey="accuracy" fill="#2a5a9f" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-muted-foreground italic text-sm">
+                    Verified signals are required to compute confidence bucket accuracy.
+                  </div>
+                )}
+              </Card>
             </div>
-          ) : (
-            <div className="flex items-center justify-center h-full text-muted-foreground italic text-sm">
-              Verified signals are required to compute confidence bucket accuracy.
-            </div>
-          )}
-        </Card>
-        </div>
+
+            <Card className="holographic-card p-6 min-h-[400px]">
+              <CardTitle className="font-headline text-lg glow-blue mb-6 flex items-center gap-2">
+                <BrainCircuit className="w-5 h-5 text-primary" />
+                NIFTY TRAINING MODULE
+              </CardTitle>
+              {trainingLoading ? (
+                <div className="h-[300px] flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                </div>
+              ) : trainingError ? (
+                <div className="h-[300px] flex items-center justify-center text-center text-sm text-destructive">
+                  {trainingError}
+                </div>
+              ) : trainingReport ? (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="rounded-xl border border-white/10 p-4 bg-background/40">
+                      <p className="text-[10px] uppercase text-muted-foreground font-headline">Train Accuracy</p>
+                      <p className="text-2xl font-headline">{(trainingReport.trainMetrics.accuracy * 100).toFixed(1)}%</p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 p-4 bg-background/40">
+                      <p className="text-[10px] uppercase text-muted-foreground font-headline">Test Accuracy</p>
+                      <p className="text-2xl font-headline text-accent">{(trainingReport.testMetrics.accuracy * 100).toFixed(1)}%</p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 p-4 bg-background/40">
+                      <p className="text-[10px] uppercase text-muted-foreground font-headline">Macro F1</p>
+                      <p className="text-2xl font-headline">{trainingReport.testMetrics.macroF1.toFixed(2)}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 p-4 bg-background/40">
+                      <p className="text-[10px] uppercase text-muted-foreground font-headline">Latest Model Bias</p>
+                      <p className="text-2xl font-headline text-primary">{trainingReport.recentInference.predictedLabel}</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 p-4 bg-background/30 space-y-2">
+                    <p className="text-[10px] uppercase text-muted-foreground font-headline">Dataset</p>
+                    <p className="text-sm text-muted-foreground">
+                      {trainingReport.dataset.examples} examples from {trainingReport.dataset.candles} NIFTY candles, latest close {trainingReport.dataset.latestClose}.
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Buy {Math.round(trainingReport.recentInference.probabilities.Buy * 100)}%, Hold {Math.round(trainingReport.recentInference.probabilities.Hold * 100)}%, Sell {Math.round(trainingReport.recentInference.probabilities.Sell * 100)}%.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {trainingReport.featureImportance.map((group) => (
+                      <div key={group.className} className="rounded-xl border border-white/10 p-4 bg-background/30 space-y-3">
+                        <p className="text-[10px] uppercase text-muted-foreground font-headline">{group.className} Drivers</p>
+                        <div className="space-y-1">
+                          {group.strongestPositive.slice(0, 3).map((item) => (
+                            <p key={`${group.className}-${item.feature}`} className="text-sm text-muted-foreground">
+                              {item.feature}: {item.weight.toFixed(3)}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </Card>
           </>
         )}
         </main>

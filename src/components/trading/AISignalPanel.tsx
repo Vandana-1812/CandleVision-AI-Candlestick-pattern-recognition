@@ -1,10 +1,18 @@
-
 "use client"
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  Sparkles,
+  BrainCircuit,
+  Info,
+  CheckCircle2,
+  Loader2,
+  Cpu
+} from 'lucide-react';
+import { explainTradingSignals } from '@/ai/flows/explain-trading-signals';
 import { 
   Sparkles, 
   BrainCircuit, 
@@ -24,6 +32,13 @@ interface AISignalPanelProps {
   symbol: string;
 }
 
+interface ModelSignalResponse {
+  stock: string;
+  pattern: string;
+  confidence: number;
+  confidenceScore: number;
+  signal: 'Buy' | 'Sell' | 'Hold';
+  reasoning: string;
 const SIGNAL_GENERATION_TIMEOUT_MS = 130000;
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
@@ -46,7 +61,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string)
 
 export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol }) => {
   const [loading, setLoading] = useState(false);
-  const [signal, setSignal] = useState<any>(null);
+  const [signal, setSignal] = useState<ModelSignalResponse | null>(null);
   const [explanation, setExplanation] = useState<any>(null);
   const { user } = useUser();
   const db = useFirestore();
@@ -57,11 +72,11 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
       toast({ title: "Insufficient Data", description: "Wait for market stream to initialize.", variant: "destructive" });
       return;
     }
-    
+
     setLoading(true);
     setSignal(null);
     setExplanation(null);
-    
+
     try {
       const currentPrice = marketData[marketData.length - 1].close;
       const analysisWindow = Math.min(marketData.length, 90);
@@ -171,8 +186,8 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
             </CardTitle>
             <CardDescription className="text-[10px] uppercase tracking-wider">Model Inference Engine Active</CardDescription>
           </div>
-          <Button 
-            onClick={getSignal} 
+          <Button
+            onClick={getSignal}
             disabled={loading || !marketData.length}
             className="bg-primary hover:bg-primary/80 text-white border-none shadow-[0_0_15px_rgba(42,90,159,0.5)] h-9 px-4 text-xs font-headline"
           >
@@ -207,8 +222,8 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
               <div className="p-4 rounded-xl bg-background/40 border border-white/5 space-y-1">
                 <p className="text-[10px] font-headline text-muted-foreground uppercase">Action</p>
                 <Badge className={`text-lg px-4 py-0 font-headline h-8 w-full justify-center ${
-                  signal.signal === 'Buy' ? 'bg-accent/20 text-accent border-accent/50' : 
-                  signal.signal === 'Sell' ? 'bg-destructive/20 text-destructive border-destructive/50' : 
+                  signal.signal === 'Buy' ? 'bg-accent/20 text-accent border-accent/50' :
+                  signal.signal === 'Sell' ? 'bg-destructive/20 text-destructive border-destructive/50' :
                   'bg-muted/20 text-muted-foreground border-white/10'
                 }`}>
                   {signal.signal}
@@ -227,6 +242,9 @@ export const AISignalPanel: React.FC<AISignalPanelProps> = ({ marketData, symbol
               </div>
             </div>
 
+            <div className="p-4 rounded-xl bg-background/40 border border-white/5 space-y-1">
+              <p className="text-[10px] font-headline text-muted-foreground uppercase">Detected Pattern</p>
+              <p className="font-headline text-base text-primary">{signal.pattern}</p>
             <div className="p-3 rounded-xl bg-background/40 border border-white/5 flex items-center justify-between">
               <p className="text-[10px] font-headline text-muted-foreground uppercase">Inference Model</p>
               <Badge className={`text-[10px] px-2.5 py-1 font-headline border ${

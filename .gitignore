@@ -22,6 +22,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+.next-dev.stdout.log
+.next-dev.stderr.log
 
 # local env files
 .env
@@ -36,3 +38,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# python ml
+ml/__pycache__/
+ml/.yf_cache/
+ml/.torch/
+ml/dataset/
+ml/temp_chart*.png

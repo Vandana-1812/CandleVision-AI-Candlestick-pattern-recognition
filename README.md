@@ -1,11 +1,11 @@
 # CandleVision | Project Status and Roadmap
 
-Last updated: 2026-04-01
+Last updated: 2026-04-02
 Branch: main
 
 ## Current Status
 
-This project is in a strong functional state for core workflows and now includes quality gates and production-hardening foundations.
+This project is in a strong functional state for core workflows and now includes quality gates, production-hardening foundations, and a deployable candlestick ML inference pipeline.
 
 High-level summary:
 - Core dashboard and AI signal generation are functional.
@@ -13,6 +13,7 @@ High-level summary:
 - Performance verification is deterministic and backend-driven.
 - Analytics now uses live verified signal data (metrics and charts).
 - CI gates exist for typecheck, lint, tests, and build.
+- A ResNet18 candlestick classifier is integrated into the trading panel with optional standalone HTTP service deployment.
 
 ## What Is Working
 
@@ -20,6 +21,7 @@ High-level summary:
 
 - User auth (email/password + Google) with profile bootstrap.
 - AI signal generation (Buy/Sell/Hold) and explanation flows.
+- ML-backed candlestick pattern inference for supported stock symbols.
 - Signal write/read against Firestore.
 - Market replay simulation UI.
 - Trade history loaded from Firestore signals.
@@ -30,36 +32,63 @@ High-level summary:
 ### Verification and Analytics
 
 - Performance verification route:
-   - [src/app/api/performance/verify/route.ts](src/app/api/performance/verify/route.ts)
-   - Deterministic result computation based on post-entry market movement.
-   - Metadata persisted (window, logic, source, etc).
+  - [src/app/api/performance/verify/route.ts](src/app/api/performance/verify/route.ts)
+  - Deterministic result computation based on post-entry market movement.
+  - Metadata persisted (window, logic, source, etc).
 - Performance page consumes verification route and persists verification outcomes:
-   - [src/app/performance/page.tsx](src/app/performance/page.tsx)
+  - [src/app/performance/page.tsx](src/app/performance/page.tsx)
 - Analytics page now computes real metrics from verified Firestore signals and renders data-driven charts:
-   - [src/app/analytics/page.tsx](src/app/analytics/page.tsx)
+  - [src/app/analytics/page.tsx](src/app/analytics/page.tsx)
+- NIFTY training analytics route and reporting module:
+  - [src/app/api/training/nifty/route.ts](src/app/api/training/nifty/route.ts)
+  - [src/lib/training/nifty-trainer.ts](src/lib/training/nifty-trainer.ts)
 
 ### Engineering Baseline
 
 - Build uses cross-platform command:
-   - [package.json](package.json)
+  - [package.json](package.json)
 - ESLint CLI and flat config are in place.
 - Vitest is configured and running.
 - Integration coverage exists for auth + signal + Firestore write/read.
 - Next.js build bypass flags were removed:
-   - [next.config.ts](next.config.ts)
+  - [next.config.ts](next.config.ts)
 
 ### Production Hardening Foundation
 
 - Startup environment checks and validation:
-   - [src/lib/env.ts](src/lib/env.ts)
-   - [src/lib/startup-checks.ts](src/lib/startup-checks.ts)
-   - [src/instrumentation.ts](src/instrumentation.ts)
+  - [src/lib/env.ts](src/lib/env.ts)
+  - [src/lib/startup-checks.ts](src/lib/startup-checks.ts)
+  - [src/instrumentation.ts](src/instrumentation.ts)
 - Telemetry utilities and ingestion endpoint:
-   - [src/lib/telemetry.ts](src/lib/telemetry.ts)
-   - [src/app/api/telemetry/route.ts](src/app/api/telemetry/route.ts)
-   - [src/components/monitoring/TelemetryBridge.tsx](src/components/monitoring/TelemetryBridge.tsx)
+  - [src/lib/telemetry.ts](src/lib/telemetry.ts)
+  - [src/app/api/telemetry/route.ts](src/app/api/telemetry/route.ts)
+  - [src/components/monitoring/TelemetryBridge.tsx](src/components/monitoring/TelemetryBridge.tsx)
 - CI workflow gates:
-   - [.github/workflows/ci.yml](.github/workflows/ci.yml)
+  - [.github/workflows/ci.yml](.github/workflows/ci.yml)
+
+### ML Inference Deployment
+
+- Candlestick ML route used by the app:
+  - [src/app/api/ml-signal/route.ts](src/app/api/ml-signal/route.ts)
+- Standalone Python inference service:
+  - [ml/service.py](ml/service.py)
+- Docker packaging:
+  - [ml/Dockerfile](ml/Dockerfile)
+  - [docker-compose.ml.yml](docker-compose.ml.yml)
+
+Run the standalone ML service locally:
+
+```bash
+python ml/service.py
+```
+
+Or run it in Docker:
+
+```bash
+docker compose -f docker-compose.ml.yml up --build
+```
+
+The Next.js app will call `ML_SERVICE_URL` when it is set. If that variable is not set, it falls back to running `python ml/predict.py` directly on the same host.
 
 ## Quality Snapshot
 
@@ -74,45 +103,45 @@ Current command outcomes:
 ### 1. Navigation Completeness
 
 - Analytics page is now linked in sidebar navigation:
-   - [src/components/dashboard/SidebarNav.tsx](src/components/dashboard/SidebarNav.tsx)
+  - [src/components/dashboard/SidebarNav.tsx](src/components/dashboard/SidebarNav.tsx)
 
 ### 2. Durability of Competition Backend (Environment-Dependent)
 
 - Competitions use Firestore Admin when admin env vars are configured.
 - Without admin env vars, persistence falls back to in-memory storage.
 - Ensure production env includes:
-   - FIREBASE_PROJECT_ID
-   - FIREBASE_CLIENT_EMAIL
-   - FIREBASE_PRIVATE_KEY
+  - FIREBASE_PROJECT_ID
+  - FIREBASE_CLIENT_EMAIL
+  - FIREBASE_PRIVATE_KEY
 
 ### 3. Verification Architecture Maturity
 
 - Verification now supports server-side scheduled execution independent of app page visits.
 - Batch verification endpoint:
-   - [src/app/api/performance/verify/pending/route.ts](src/app/api/performance/verify/pending/route.ts)
+  - [src/app/api/performance/verify/pending/route.ts](src/app/api/performance/verify/pending/route.ts)
 - Shared verification engine:
-   - [src/lib/performance-verification.ts](src/lib/performance-verification.ts)
+  - [src/lib/performance-verification.ts](src/lib/performance-verification.ts)
 - Optional GitHub Actions scheduler trigger:
-   - [.github/workflows/verification-cron.yml](.github/workflows/verification-cron.yml)
+  - [.github/workflows/verification-cron.yml](.github/workflows/verification-cron.yml)
 
 ### 4. Learning Progress Persistence
 
 - AI personalization generation is integrated and persisted.
 - Per-user learning progress persistence is now wired for:
-   - lesson completion state
-   - quiz score + attempts per lesson
-   - module coverage snapshot
-   - personalization input context
+  - lesson completion state
+  - quiz score + attempts per lesson
+  - module coverage snapshot
+  - personalization input context
 - Core files:
-   - [src/lib/learning-progress.ts](src/lib/learning-progress.ts)
-   - [src/app/learning/page.tsx](src/app/learning/page.tsx)
+  - [src/lib/learning-progress.ts](src/lib/learning-progress.ts)
+  - [src/app/learning/page.tsx](src/app/learning/page.tsx)
 
 ### 5. Lint Warning Cleanup
 
 - Lint currently passes with warnings (unused vars, minor React/Next guidance).
 - Recommended for cleaner CI and maintainability:
-   - remove unused imports/vars
-   - address no-img-element warnings where appropriate
+  - remove unused imports/vars
+  - address no-img-element warnings where appropriate
 
 ### 6. Observability and Alerting Depth
 
@@ -220,6 +249,8 @@ npm run lint
 npm run test
 npm run test:integration
 npm run build
+python ml/service.py
+docker compose -f docker-compose.ml.yml up --build
 ```
 
 ## Required Environment Variables
@@ -234,6 +265,7 @@ NEXT_PUBLIC_FIREBASE_APP_ID=...
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=...
 GOOGLE_API_KEY=...
+ML_SERVICE_URL=http://localhost:8001
 FIREBASE_PROJECT_ID=...
 FIREBASE_CLIENT_EMAIL=...
 FIREBASE_PRIVATE_KEY=...

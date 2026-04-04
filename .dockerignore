@@ -1,0 +1,10 @@
+.git
+.next
+node_modules
+npm-debug.log
+package-lock.json
+ml/dataset
+ml/.torch
+ml/.yf_cache
+ml/__pycache__
+src/**/*.test.ts
